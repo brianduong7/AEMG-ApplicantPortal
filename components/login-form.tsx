@@ -1,21 +1,26 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import Link from "next/link";
 import type { AuthFormState } from "@/app/actions/auth";
 import { login } from "@/app/actions/auth";
-import { COMPANIES, COMPANY_IDS, type CompanyId } from "@/lib/companies";
+import { COMPANIES, type CompanyId } from "@/lib/companies";
 import { getLoginTheme } from "@/lib/portal-theme";
 
-export function LoginForm() {
-  const [company, setCompany] = useState<CompanyId>("aemg");
+type Props = {
+  companyId: CompanyId;
+  /** Path to return to after sign-in when middleware sent the user here (internal paths only). */
+  returnTo?: string;
+};
+
+export function LoginForm({ companyId, returnTo }: Props) {
   const [state, formAction, pending] = useActionState(
     login,
     null as AuthFormState,
   );
-  const t = getLoginTheme(company);
-  const meta = COMPANIES[company];
+  const t = getLoginTheme(companyId);
+  const meta = COMPANIES[companyId];
 
   return (
     <div className={t.outer}>
@@ -39,6 +44,10 @@ export function LoginForm() {
           </p>
         </div>
         <form action={formAction} className="flex flex-col gap-5">
+          <input type="hidden" name="company" value={companyId} />
+          {returnTo ? (
+            <input type="hidden" name="returnTo" value={returnTo} />
+          ) : null}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="email" className={t.label}>
               Email
@@ -67,25 +76,6 @@ export function LoginForm() {
               placeholder="At least 6 characters"
               className={t.input}
             />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="company" className={t.label}>
-              Company
-            </label>
-            <select
-              id="company"
-              name="company"
-              required
-              value={company}
-              onChange={(e) => setCompany(e.target.value as CompanyId)}
-              className={t.select}
-            >
-              {COMPANY_IDS.map((id) => (
-                <option key={id} value={id}>
-                  {COMPANIES[id].label}
-                </option>
-              ))}
-            </select>
           </div>
           {state?.error ? (
             <p className={t.errorBox} role="alert">

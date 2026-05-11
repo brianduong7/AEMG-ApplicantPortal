@@ -8,6 +8,13 @@ import { type SessionPayload } from "@/lib/session";
 
 export type AuthFormState = { error?: string } | null;
 
+function safeReturnToPath(raw: string): string | null {
+  const path = raw.trim();
+  if (!path.startsWith("/jobs")) return null;
+  if (path.startsWith("//") || path.includes("://")) return null;
+  return path;
+}
+
 export async function login(
   _prevState: AuthFormState,
   formData: FormData,
@@ -15,9 +22,10 @@ export async function login(
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const company = parseCompanyId(String(formData.get("company") ?? "").trim());
+  const returnTo = safeReturnToPath(String(formData.get("returnTo") ?? ""));
 
   if (!company) {
-    return { error: "Please select a company." };
+    return { error: "Invalid company. Use a sign-in link with ?company=aemg or ?company=aife." };
   }
 
   if (!email || password.length < 6) {
@@ -37,11 +45,22 @@ export async function login(
     secure: process.env.NODE_ENV === "production",
   });
 
-  redirect("/jobs");
+  redirect(returnTo ?? "/jobs");
 }
 
 export async function logout() {
   const store = await cookies();
+  let company = "aemg";
+  const raw = store.get(SESSION_COOKIE)?.value;
+  if (raw) {
+    try {
+      const data = JSON.parse(raw) as { company?: unknown };
+      const parsed = parseCompanyId(data.company);
+      if (parsed) company = parsed;
+    } catch {
+      /* ignore */
+    }
+  }
   store.delete(SESSION_COOKIE);
-  redirect("/login");
+  redirect(`/login?company=${company}`);
 }

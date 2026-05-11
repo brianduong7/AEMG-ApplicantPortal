@@ -7,6 +7,14 @@ export function parseCompanyId(raw: unknown): CompanyId | null {
   return null;
 }
 
+/** Read `company` from a URL search param; defaults to AEMG when missing or invalid. */
+export function companyFromSearchParam(
+  value: string | string[] | undefined,
+): CompanyId {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return parseCompanyId(typeof raw === "string" ? raw.trim() : raw) ?? "aemg";
+}
+
 export const COMPANIES: Record<
   CompanyId,
   { id: CompanyId; label: string; shortLabel: string; logoSrc: string }

@@ -43,8 +43,9 @@ export default async function ApplyPage({ params }: Props) {
           <span className={t.jobPillMuted}>{job.location}</span>
           <span className={t.jobPillMuted}>{job.type}</span>
         </div>
-        <JobDescriptionBox text={job.summary} />
       </div>
+
+      <JobDescriptionBox text={job.summary} />
 
       <section className={t.applySection}>
         <h2 className={t.applySectionTitle}>Your application</h2>
