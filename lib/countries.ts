@@ -1,0 +1,23 @@
+/** Country options for application forms (display value = stored value). */
+export const COUNTRIES: readonly string[] = [
+  "Australia",
+  "Brunei Darussalam",
+  "Cambodia",
+  "Canada",
+  "China",
+  "France",
+  "Germany",
+  "India",
+  "Indonesia",
+  "Japan",
+  "Malaysia",
+  "Myanmar",
+  "New Zealand",
+  "Philippines",
+  "Singapore",
+  "South Korea",
+  "Thailand",
+  "United Kingdom",
+  "United States",
+  "Vietnam",
+].sort((a, b) => a.localeCompare(b));

@@ -1,0 +1,47 @@
+"use server";
+
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { SESSION_COOKIE } from "@/lib/auth-constants";
+import { parseCompanyId } from "@/lib/companies";
+import { type SessionPayload } from "@/lib/session";
+
+export type AuthFormState = { error?: string } | null;
+
+export async function login(
+  _prevState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const company = parseCompanyId(String(formData.get("company") ?? "").trim());
+
+  if (!company) {
+    return { error: "Please select a company." };
+  }
+
+  if (!email || password.length < 6) {
+    return {
+      error:
+        "Enter a valid email and a password with at least 6 characters (demo rules).",
+    };
+  }
+
+  const payload: SessionPayload = { email, company };
+  const store = await cookies();
+  store.set(SESSION_COOKIE, JSON.stringify(payload), {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+    secure: process.env.NODE_ENV === "production",
+  });
+
+  redirect("/jobs");
+}
+
+export async function logout() {
+  const store = await cookies();
+  store.delete(SESSION_COOKIE);
+  redirect("/login");
+}
