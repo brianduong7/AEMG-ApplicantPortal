@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: "Open roles — Applicant Portal",
 };
 
-export default async function JobsPage() {
+export default async function ApplicantJobsPage() {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) redirect("/applicant/login?intent=applicant");
 
   const t = getPortalTheme(session.company);
   const jobs = await getJobsByCompany(session.company);
@@ -27,7 +27,7 @@ export default async function JobsPage() {
       <ul className="flex flex-col gap-4">
         {jobs.map((job) => (
           <li key={job.id}>
-            <Link href={`/jobs/${job.id}/apply`} className={t.jobCard}>
+            <Link href={`/applicant/jobs/${job.id}/apply`} className={t.jobCard}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className={t.jobCardTitle}>{job.title}</h2>

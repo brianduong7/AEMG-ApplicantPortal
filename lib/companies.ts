@@ -15,6 +15,14 @@ export function companyFromSearchParam(
   return parseCompanyId(typeof raw === "string" ? raw.trim() : raw) ?? "aemg";
 }
 
+/** ERPNext `Company` document name for API filters and Job Opening create (defaults match common desk names). */
+export function erpCompanyNameForPortal(company: CompanyId): string {
+  if (company === "aife") {
+    return (process.env.ERPNEXT_AIFE_COMPANY ?? "AIFE").trim() || "AIFE";
+  }
+  return (process.env.ERPNEXT_AEMG_COMPANY ?? "AEMG").trim() || "AEMG";
+}
+
 export const COMPANIES: Record<
   CompanyId,
   { id: CompanyId; label: string; shortLabel: string; logoSrc: string }

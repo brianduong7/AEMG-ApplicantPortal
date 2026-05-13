@@ -16,9 +16,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: `Apply — ${job.title}` };
 }
 
-export default async function ApplyPage({ params }: Props) {
+export default async function ApplicantApplyPage({ params }: Props) {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) redirect("/applicant/login?intent=applicant");
 
   const { id } = await params;
   const job = await getJobById(id);
@@ -34,7 +34,7 @@ export default async function ApplyPage({ params }: Props) {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <Link href="/jobs" className={t.backLink}>
+        <Link href="/applicant/jobs" className={t.backLink}>
           ← All roles
         </Link>
         <h1 className={`mt-4 ${t.pageTitle}`}>Apply for {job.title}</h1>
@@ -45,7 +45,7 @@ export default async function ApplyPage({ params }: Props) {
         </div>
       </div>
 
-      <JobDescriptionBox text={job.summary} />
+      <JobDescriptionBox text={job.summary} html={job.summaryHtml} />
 
       <section className={t.applySection}>
         <h2 className={t.applySectionTitle}>Your application</h2>

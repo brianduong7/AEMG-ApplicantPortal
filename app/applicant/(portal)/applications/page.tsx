@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: "My applications — Applicant Portal",
 };
 
-export default async function ApplicationsPage() {
+export default async function ApplicantApplicationsPage() {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) redirect("/applicant/login?intent=applicant");
 
   const t = getPortalTheme(session.company);
   const applications = getApplicationsForCompany(session.company);
@@ -49,7 +49,7 @@ export default async function ApplicationsPage() {
       </section>
 
       <div>
-        <Link href="/jobs" className={t.backLink}>
+        <Link href="/applicant/jobs" className={t.backLink}>
           ← Back to open roles
         </Link>
       </div>

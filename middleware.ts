@@ -2,31 +2,169 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth-constants";
 import { parseCompanyId } from "@/lib/companies";
+import {
+  isApplicantPortal,
+  isDepartmentManagerPortal,
+  isHrPortal,
+  isRecruiterPortal,
+  parseSessionCookieJson,
+} from "@/lib/session";
 
-function sessionPayloadIsValid(raw: string | undefined): boolean {
-  if (!raw) return false;
-  try {
-    const data = JSON.parse(raw) as { email?: unknown; company?: unknown };
-    return (
-      typeof data.email === "string" &&
-      data.email.length > 0 &&
-      parseCompanyId(data.company) !== null
-    );
-  } catch {
-    return false;
+function applicantSessionIsValid(raw: string | undefined): boolean {
+  const s = parseSessionCookieJson(raw);
+  return s !== null && isApplicantPortal(s);
+}
+
+function recruiterSessionIsValid(raw: string | undefined): boolean {
+  const s = parseSessionCookieJson(raw);
+  return s !== null && isRecruiterPortal(s);
+}
+
+function departmentManagerSessionIsValid(raw: string | undefined): boolean {
+  const s = parseSessionCookieJson(raw);
+  return s !== null && isDepartmentManagerPortal(s);
+}
+
+function hrPortalSessionIsValid(raw: string | undefined): boolean {
+  const s = parseSessionCookieJson(raw);
+  return s !== null && isHrPortal(s);
+}
+
+/** Legacy `/jobs/*` URLs before applicant routes moved under `/applicant`. */
+function legacyJobsRedirect(request: NextRequest): NextResponse | null {
+  const { pathname } = request.nextUrl;
+  if (!pathname.startsWith("/jobs")) return null;
+
+  const url = request.nextUrl.clone();
+  if (pathname === "/jobs" || pathname === "/jobs/") {
+    url.pathname = "/applicant/jobs";
+    return NextResponse.redirect(url, 308);
   }
+  if (pathname === "/jobs/dashboard") {
+    url.pathname = "/applicant/dashboard";
+    return NextResponse.redirect(url, 308);
+  }
+  if (pathname === "/jobs/applications") {
+    url.pathname = "/applicant/applications";
+    return NextResponse.redirect(url, 308);
+  }
+  if (pathname === "/jobs/profile") {
+    url.pathname = "/applicant/profile";
+    return NextResponse.redirect(url, 308);
+  }
+  const applyMatch = /^\/jobs\/([^/]+)\/apply\/?$/.exec(pathname);
+  if (applyMatch) {
+    url.pathname = `/applicant/jobs/${applyMatch[1]}/apply`;
+    return NextResponse.redirect(url, 308);
+  }
+  if (pathname.startsWith("/jobs/")) {
+    url.pathname = "/applicant/jobs";
+    return NextResponse.redirect(url, 308);
+  }
+  return null;
 }
 
 export function middleware(request: NextRequest) {
-  const cookieVal = request.cookies.get(SESSION_COOKIE)?.value;
-  const hasValidSession = sessionPayloadIsValid(cookieVal);
-  const hasCookie = Boolean(cookieVal);
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/jobs")) {
-    if (!hasValidSession) {
-      const login = new URL("/login", request.url);
+  const legacy = legacyJobsRedirect(request);
+  if (legacy) return legacy;
+
+  if (pathname === "/hr" || pathname.startsWith("/hr/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/recruiter${pathname.slice(3)}`;
+    return NextResponse.redirect(url, 308);
+  }
+
+  if (pathname === "/hiring-manager" || pathname.startsWith("/hiring-manager/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/hr-portal${pathname.slice("/hiring-manager".length)}`;
+    return NextResponse.redirect(url, 308);
+  }
+
+  const cookieVal = request.cookies.get(SESSION_COOKIE)?.value;
+  const hasApplicantSession = applicantSessionIsValid(cookieVal);
+  const hasRecruiterSession = recruiterSessionIsValid(cookieVal);
+  const hasDepartmentManagerSession = departmentManagerSessionIsValid(cookieVal);
+  const hasHrPortalSession = hrPortalSessionIsValid(cookieVal);
+  const hasCookie = Boolean(cookieVal);
+
+  const isRecruiterLoginPath = pathname === "/recruiter/login";
+  const isDepartmentManagerLoginPath = pathname === "/department-manager/login";
+  const isHrPortalLoginPath = pathname === "/hr-portal/login";
+  const isApplicantLoginPath = pathname === "/applicant/login";
+
+  if (pathname.startsWith("/recruiter") && !isRecruiterLoginPath) {
+    if (!hasRecruiterSession) {
+      const login = new URL("/recruiter/login", request.url);
       login.searchParams.set("from", pathname);
+      const companyQ = request.nextUrl.searchParams.get("company");
+      const company =
+        typeof companyQ === "string" && parseCompanyId(companyQ.trim()) ?
+          companyQ.trim()
+        : "aemg";
+      login.searchParams.set("company", company);
+      const res = NextResponse.redirect(login);
+      if (hasCookie && !hasApplicantSession) res.cookies.delete(SESSION_COOKIE);
+      return res;
+    }
+    return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/department-manager") && !isDepartmentManagerLoginPath) {
+    if (!hasDepartmentManagerSession) {
+      const login = new URL("/department-manager/login", request.url);
+      login.searchParams.set("from", pathname);
+      const companyQ = request.nextUrl.searchParams.get("company");
+      const company =
+        typeof companyQ === "string" && parseCompanyId(companyQ.trim()) ?
+          companyQ.trim()
+        : "aemg";
+      login.searchParams.set("company", company);
+      const res = NextResponse.redirect(login);
+      if (hasCookie && !hasApplicantSession) res.cookies.delete(SESSION_COOKIE);
+      return res;
+    }
+    return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/hr-portal") && !isHrPortalLoginPath) {
+    if (!hasHrPortalSession) {
+      const login = new URL("/hr-portal/login", request.url);
+      login.searchParams.set("from", pathname);
+      const companyQ = request.nextUrl.searchParams.get("company");
+      const company =
+        typeof companyQ === "string" && parseCompanyId(companyQ.trim()) ?
+          companyQ.trim()
+        : "aemg";
+      login.searchParams.set("company", company);
+      const res = NextResponse.redirect(login);
+      if (hasCookie && !hasApplicantSession) res.cookies.delete(SESSION_COOKIE);
+      return res;
+    }
+    return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/applicant") && !isApplicantLoginPath) {
+    if (hasRecruiterSession && !hasApplicantSession) {
+      return NextResponse.redirect(new URL("/recruiter/dashboard", request.url));
+    }
+    if (hasDepartmentManagerSession && !hasApplicantSession) {
+      return NextResponse.redirect(new URL("/department-manager/dashboard", request.url));
+    }
+    if (hasHrPortalSession && !hasApplicantSession) {
+      return NextResponse.redirect(new URL("/hr-portal/dashboard", request.url));
+    }
+    if (!hasApplicantSession) {
+      const login = new URL("/applicant/login", request.url);
+      login.searchParams.set("from", pathname);
+      login.searchParams.set("intent", "applicant");
+      const companyQ = request.nextUrl.searchParams.get("company");
+      const company =
+        typeof companyQ === "string" && parseCompanyId(companyQ.trim()) ?
+          companyQ.trim()
+        : "aemg";
+      login.searchParams.set("company", company);
       const res = NextResponse.redirect(login);
       if (hasCookie) res.cookies.delete(SESSION_COOKIE);
       return res;
@@ -34,13 +172,78 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname === "/login" && hasValidSession) {
-    return NextResponse.redirect(new URL("/jobs", request.url));
+  if (isRecruiterLoginPath && hasRecruiterSession) {
+    return NextResponse.redirect(new URL("/recruiter/dashboard", request.url));
+  }
+
+  if (isDepartmentManagerLoginPath && hasDepartmentManagerSession) {
+    return NextResponse.redirect(new URL("/department-manager/dashboard", request.url));
+  }
+
+  if (isHrPortalLoginPath && hasHrPortalSession) {
+    return NextResponse.redirect(new URL("/hr-portal/dashboard", request.url));
+  }
+
+  if (isApplicantLoginPath) {
+    const applicantSignInIntent =
+      request.nextUrl.searchParams.get("intent") === "applicant";
+    if (applicantSignInIntent) {
+      return NextResponse.next();
+    }
+    if (hasRecruiterSession) {
+      return NextResponse.redirect(new URL("/recruiter/dashboard", request.url));
+    }
+    if (hasDepartmentManagerSession) {
+      return NextResponse.redirect(new URL("/department-manager/dashboard", request.url));
+    }
+    if (hasHrPortalSession) {
+      return NextResponse.redirect(new URL("/hr-portal/dashboard", request.url));
+    }
+    if (hasApplicantSession) {
+      return NextResponse.redirect(new URL("/applicant/dashboard", request.url));
+    }
+    return NextResponse.next();
+  }
+
+  if (pathname === "/login") {
+    const applicantSignInIntent =
+      request.nextUrl.searchParams.get("intent") === "applicant";
+    if (applicantSignInIntent) {
+      return NextResponse.next();
+    }
+    if (hasRecruiterSession) {
+      return NextResponse.redirect(new URL("/recruiter/dashboard", request.url));
+    }
+    if (hasDepartmentManagerSession) {
+      return NextResponse.redirect(new URL("/department-manager/dashboard", request.url));
+    }
+    if (hasHrPortalSession) {
+      return NextResponse.redirect(new URL("/hr-portal/dashboard", request.url));
+    }
+    if (hasApplicantSession) {
+      return NextResponse.redirect(new URL("/applicant/dashboard", request.url));
+    }
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/jobs/:path*", "/login"],
+  matcher: [
+    "/jobs",
+    "/jobs/:path*",
+    "/login",
+    "/applicant",
+    "/applicant/:path*",
+    "/recruiter",
+    "/recruiter/:path*",
+    "/department-manager",
+    "/department-manager/:path*",
+    "/hr-portal",
+    "/hr-portal/:path*",
+    "/hiring-manager",
+    "/hiring-manager/:path*",
+    "/hr",
+    "/hr/:path*",
+  ],
 };

@@ -1,4 +1,4 @@
-import type { CompanyId } from "@/lib/companies";
+import { erpCompanyNameForPortal, type CompanyId } from "@/lib/companies";
 
 type ERPNextJob = {
   name?: string;
@@ -10,6 +10,7 @@ type ERPNextJob = {
   description?: string;
   company?: string;
   status?: string;
+  publish?: number;
 };
 
 type ERPNextListResponse = {
@@ -77,6 +78,13 @@ export function hasERPNextConfig(): boolean {
   return getERPConfig() !== null;
 }
 
+/** Field on `Job Applicant` that links to Job Opening (HRMS default: `job_title`). */
+export function getERPNextJobApplicantOpeningField(): string {
+  const c = getERPConfig();
+  if (c) return c.jobApplicantOpeningField;
+  return process.env.ERPNEXT_JOB_APPLICANT_OPENING_FIELD?.trim() ?? "job_title";
+}
+
 export async function fetchERPNextJobs(company: CompanyId) {
   const config = getERPConfig();
   if (!config) return null;
@@ -92,6 +100,7 @@ export async function fetchERPNextJobs(company: CompanyId) {
     "description",
     "company",
     "status",
+    "publish",
   ];
   const candidateFilters: Array<Array<[string, string, string]>> = config.openStatus
     ? [[["status", "=", config.openStatus]], []]
@@ -284,4 +293,486 @@ export async function uploadResumeForJobApplicant(input: {
 
   const updateJson = (await updateRes.json()) as ERPNextUpdateResponse;
   return updateJson.data?.resume_attachment ?? fileUrl;
+}
+
+export type ERPNextFetchedSiteFile = {
+  ok: boolean;
+  status: number;
+  contentType: string | null;
+  contentDisposition: string | null;
+  body: ArrayBuffer | null;
+};
+
+/**
+ * Downloads a site file (e.g. `/private/files/...` from `resume_attachment`) using API token auth.
+ * Rejects absolute URLs whose host does not match `ERPNEXT_BASE_URL` to avoid SSRF.
+ */
+export async function fetchERPNextSiteFile(fileRef: string): Promise<ERPNextFetchedSiteFile> {
+  const empty: ERPNextFetchedSiteFile = {
+    ok: false,
+    status: 404,
+    contentType: null,
+    contentDisposition: null,
+    body: null,
+  };
+
+  const config = getERPConfig();
+  const trimmed = fileRef.trim();
+  if (!config || !trimmed) return empty;
+
+  let siteBase: URL;
+  try {
+    siteBase = new URL(config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`);
+  } catch {
+    return { ...empty, status: 400 };
+  }
+
+  if (trimmed.startsWith("//")) return { ...empty, status: 400 };
+
+  let pathWithQuery: string;
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    let refUrl: URL;
+    try {
+      refUrl = new URL(trimmed);
+    } catch {
+      return { ...empty, status: 400 };
+    }
+    if (refUrl.hostname !== siteBase.hostname) {
+      return { ...empty, status: 400 };
+    }
+    pathWithQuery = refUrl.pathname + refUrl.search;
+  } else {
+    pathWithQuery = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  }
+
+  if (!pathWithQuery.startsWith("/") || pathWithQuery.startsWith("//")) {
+    return { ...empty, status: 400 };
+  }
+
+  const fileUrl = new URL(pathWithQuery, siteBase).toString();
+
+  const res = await fetch(fileUrl, {
+    method: "GET",
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "*/*",
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      contentType: null,
+      contentDisposition: null,
+      body: null,
+    };
+  }
+
+  const body = await res.arrayBuffer();
+  const ctLower = (res.headers.get("content-type") ?? "").toLowerCase();
+  if (ctLower.includes("text/html")) {
+    return {
+      ok: false,
+      status: 502,
+      contentType: null,
+      contentDisposition: null,
+      body: null,
+    };
+  }
+  return {
+    ok: true,
+    status: 200,
+    contentType: res.headers.get("content-type"),
+    contentDisposition: res.headers.get("content-disposition"),
+    body,
+  };
+}
+
+// --- HR portal (same API key as applicant flows) ---
+
+export type ERPNextJobApplicantRow = {
+  name?: string;
+  applicant_name?: string;
+  email_id?: string;
+  phone_number?: string;
+  status?: string;
+  job_title?: string;
+  creation?: string;
+  cover_letter?: string;
+  resume_attachment?: string;
+};
+
+type ERPNextApplicantListResponse = {
+  data?: ERPNextJobApplicantRow[];
+};
+
+type ERPNextInterviewTypeRow = { name?: string };
+
+type ERPNextInterviewTypeListResponse = {
+  data?: ERPNextInterviewTypeRow[];
+};
+
+function getDefaultInterviewTypeName(): string | undefined {
+  return getEnv("ERPNEXT_DEFAULT_INTERVIEW_TYPE");
+}
+
+/** All job openings for the HR portal (no filters). */
+export async function fetchERPNextJobOpeningsForHr(): Promise<ERPNextJob[] | null> {
+  const config = getERPConfig();
+  if (!config) return null;
+
+  const fields = [
+    "name",
+    "job_title",
+    "designation",
+    "department",
+    "location",
+    "employment_type",
+    "description",
+    "company",
+    "status",
+    "publish",
+  ];
+
+  const url = new URL(
+    `/api/resource/${encodeURIComponent(config.doctype)}`,
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  url.searchParams.set("fields", JSON.stringify(fields));
+  url.searchParams.set("limit_page_length", "200");
+  url.searchParams.set("order_by", "modified desc");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as ERPNextListResponse;
+  return json.data ?? [];
+}
+
+export async function createERPNextJobOpening(input: {
+  company: CompanyId;
+  jobTitle: string;
+  designation: string;
+  department?: string;
+  employmentType?: string;
+  location?: string;
+  description?: string;
+  status?: "Open" | "Closed";
+  publish?: 0 | 1;
+}): Promise<string> {
+  const config = getERPConfig();
+  if (!config) throw new Error("ERPNext config missing");
+
+  const companyName = erpCompanyNameForPortal(input.company);
+  const payload: Record<string, unknown> = {
+    job_title: input.jobTitle.trim(),
+    company: companyName,
+    designation: input.designation.trim(),
+    status: input.status ?? "Open",
+    publish: input.publish ?? 1,
+  };
+  if (input.department?.trim()) payload.department = input.department.trim();
+  if (input.employmentType?.trim()) payload.employment_type = input.employmentType.trim();
+  if (input.location?.trim()) payload.location = input.location.trim();
+  if (input.description?.trim()) payload.description = input.description.trim();
+
+  const endpoint = new URL(
+    `/api/resource/${encodeURIComponent(config.doctype)}`,
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  const res = await fetch(endpoint.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`(${res.status}) ${text.slice(0, 280)}`);
+  }
+  const json = (await res.json()) as ERPNextCreateResponse;
+  if (!json.data?.name) throw new Error("ERPNext did not return Job Opening id");
+  return json.data.name;
+}
+
+export async function updateERPNextJobOpening(
+  docName: string,
+  input: {
+    jobTitle?: string;
+    designation?: string;
+    department?: string;
+    employmentType?: string;
+    location?: string;
+    description?: string;
+    status?: "Open" | "Closed";
+    publish?: 0 | 1;
+  },
+): Promise<void> {
+  const config = getERPConfig();
+  if (!config) throw new Error("ERPNext config missing");
+
+  const payload: Record<string, unknown> = {};
+  if (input.jobTitle !== undefined) payload.job_title = input.jobTitle.trim();
+  if (input.designation !== undefined) payload.designation = input.designation.trim();
+  if (input.department !== undefined)
+    payload.department = input.department.trim() || null;
+  if (input.employmentType !== undefined)
+    payload.employment_type = input.employmentType.trim() || null;
+  if (input.location !== undefined) payload.location = input.location.trim() || null;
+  if (input.description !== undefined) payload.description = input.description.trim();
+  if (input.status !== undefined) payload.status = input.status;
+  if (input.publish !== undefined) payload.publish = input.publish;
+
+  const endpoint = new URL(
+    `/api/resource/${encodeURIComponent(config.doctype)}/${encodeURIComponent(docName.trim())}`,
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  const res = await fetch(endpoint.toString(), {
+    method: "PUT",
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`(${res.status}) ${text.slice(0, 280)}`);
+  }
+}
+
+export async function fetchERPNextJobApplicants(options: {
+  jobOpeningDocName?: string;
+  /** When set, only applicants linked to one of these Job Opening document names (Frappe `in` filter). */
+  jobOpeningDocNamesIn?: string[];
+  limit?: number;
+}): Promise<ERPNextJobApplicantRow[] | null> {
+  const config = getERPConfig();
+  if (!config) return null;
+
+  const openingField = config.jobApplicantOpeningField;
+  const filters: unknown[] = [];
+  const single = options.jobOpeningDocName?.trim();
+  if (single) {
+    filters.push([openingField, "=", single]);
+  } else if (options.jobOpeningDocNamesIn?.length) {
+    filters.push([openingField, "in", options.jobOpeningDocNamesIn]);
+  }
+
+  const fields = [
+    "name",
+    "applicant_name",
+    "email_id",
+    "phone_number",
+    "status",
+    openingField,
+    "creation",
+  ];
+
+  const url = new URL(
+    "/api/resource/Job Applicant",
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  url.searchParams.set("fields", JSON.stringify(fields));
+  if (filters.length) {
+    url.searchParams.set("filters", JSON.stringify(filters));
+  }
+  url.searchParams.set("limit_page_length", String(options.limit ?? 100));
+  url.searchParams.set("order_by", "modified desc");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as ERPNextApplicantListResponse;
+  return json.data ?? [];
+}
+
+export async function fetchERPNextJobApplicantByName(
+  name: string,
+): Promise<ERPNextJobApplicantRow | null> {
+  const config = getERPConfig();
+  const trimmed = name.trim();
+  if (!config || !trimmed) return null;
+
+  const fields = [
+    "name",
+    "applicant_name",
+    "email_id",
+    "phone_number",
+    "status",
+    config.jobApplicantOpeningField,
+    "creation",
+    "cover_letter",
+    "resume_attachment",
+  ];
+
+  const url = new URL(
+    `/api/resource/Job Applicant/${encodeURIComponent(trimmed)}`,
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  url.searchParams.set("fields", JSON.stringify(fields));
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as { data?: ERPNextJobApplicantRow };
+  return json.data ?? null;
+}
+
+export type ERPNextInterviewRow = {
+  name?: string;
+  job_applicant?: string;
+  job_opening?: string;
+  status?: string;
+  scheduled_on?: string;
+  from_time?: string;
+  to_time?: string;
+  interview_type?: string;
+};
+
+type ERPNextInterviewListResponse = {
+  data?: ERPNextInterviewRow[];
+};
+
+/** All interviews (no filters). */
+export async function fetchERPNextInterviewsForHr(): Promise<ERPNextInterviewRow[] | null> {
+  const config = getERPConfig();
+  if (!config) return null;
+
+  const fields = [
+    "name",
+    "job_applicant",
+    "job_opening",
+    "status",
+    "scheduled_on",
+    "from_time",
+    "to_time",
+    "interview_type",
+  ];
+
+  const url = new URL(
+    "/api/resource/Interview",
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  url.searchParams.set("fields", JSON.stringify(fields));
+  url.searchParams.set("limit_page_length", "200");
+  url.searchParams.set("order_by", "modified desc");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as ERPNextInterviewListResponse;
+  return json.data ?? [];
+}
+
+export async function fetchERPNextInterviewTypes(): Promise<{ name: string }[] | null> {
+  const config = getERPConfig();
+  if (!config) return null;
+
+  const url = new URL(
+    "/api/resource/Interview Type",
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  url.searchParams.set("fields", JSON.stringify(["name"]));
+  url.searchParams.set("limit_page_length", "200");
+  url.searchParams.set("order_by", "name asc");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as ERPNextInterviewTypeListResponse;
+  const rows = json.data ?? [];
+  return rows
+    .map((r) => (typeof r.name === "string" ? { name: r.name } : null))
+    .filter((r): r is { name: string } => r !== null);
+}
+
+export async function createERPNextInterview(input: {
+  jobApplicantName: string;
+  scheduledOn: string;
+  fromTime: string;
+  toTime: string;
+  interviewType?: string;
+  interviewerUser?: string;
+}): Promise<string> {
+  const config = getERPConfig();
+  if (!config) throw new Error("ERPNext config missing");
+
+  const interviewType =
+    input.interviewType?.trim() || getDefaultInterviewTypeName();
+  if (!interviewType) {
+    throw new Error(
+      "Interview Type is required. Set ERPNEXT_DEFAULT_INTERVIEW_TYPE or pick a type in the form.",
+    );
+  }
+
+  const interviewDetails =
+    input.interviewerUser?.trim() ?
+      [{ interviewer: input.interviewerUser.trim() }]
+    : [];
+
+  const payload: Record<string, unknown> = {
+    job_applicant: input.jobApplicantName.trim(),
+    interview_type: interviewType,
+    status: "Pending",
+    scheduled_on: input.scheduledOn.trim(),
+    from_time: input.fromTime.trim(),
+    to_time: input.toTime.trim(),
+    interview_details: interviewDetails,
+  };
+
+  const endpoint = new URL(
+    "/api/resource/Interview",
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  const res = await fetch(endpoint.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`(${res.status}) ${text.slice(0, 280)}`);
+  }
+  const json = (await res.json()) as ERPNextCreateResponse;
+  if (!json.data?.name) throw new Error("ERPNext did not return Interview id");
+  return json.data.name;
 }

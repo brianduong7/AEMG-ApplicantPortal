@@ -1,31 +1,16 @@
-import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { LoginForm } from "@/components/login-form";
-import { companyFromSearchParam, parseCompanyId } from "@/lib/companies";
-
-export const metadata: Metadata = {
-  title: "Sign in — Applicant Portal",
-  description: "Sign in to browse roles and submit your application.",
-};
 
 type Props = {
-  searchParams?: Promise<{ company?: string; from?: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function LoginPage({ searchParams }: Props) {
+/** Legacy `/login` → applicant sign-in lives under `/applicant/login`. */
+export default async function LegacyLoginRedirect({ searchParams }: Props) {
   const sp = (await searchParams) ?? {};
-  const raw = typeof sp.company === "string" ? sp.company.trim() : "";
-  const from =
-    typeof sp.from === "string" && sp.from.startsWith("/") ? sp.from : "";
-
-  if (raw && parseCompanyId(raw) === null) {
-    const q = new URLSearchParams();
-    q.set("company", "aemg");
-    if (from) q.set("from", from);
-    redirect(`/login?${q.toString()}`);
+  const q = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (typeof value === "string") q.set(key, value);
   }
-
-  const companyId = companyFromSearchParam(sp.company);
-
-  return <LoginForm companyId={companyId} returnTo={from || undefined} />;
+  const suffix = q.toString();
+  redirect(suffix ? `/applicant/login?${suffix}` : "/applicant/login");
 }

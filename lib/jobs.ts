@@ -1,6 +1,7 @@
 import type { CompanyId } from "@/lib/companies";
 import { COMPANY_IDS } from "@/lib/companies";
 import { fetchERPNextJobOpeningByDocName, fetchERPNextJobs } from "@/lib/erpnext";
+import { normalizeJobDescriptionForEditor } from "@/lib/job-description-html";
 
 export type Job = {
   id: string;
@@ -10,6 +11,8 @@ export type Job = {
   location: string;
   type: "Full-time" | "Part-time" | "Contract";
   summary: string;
+  /** Rich HTML from ERPNext (Quill), normalized for in-app preview. */
+  summaryHtml?: string | null;
 };
 
 const FALLBACK_JOBS: Job[] = [
@@ -63,11 +66,23 @@ function normalizeType(value?: string): Job["type"] {
 
 function toPlainText(value?: string): string {
   if (!value) return "";
-  return value
-    .replace(/\r\n?/g, "\n")
+  let v = value.replace(/\r\n?/g, "\n");
+  v = v.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, inner: string) => {
+    let n = 0;
+    return inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_m, cell: string) => {
+      n += 1;
+      const t = cell
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      return `\n${n}. ${t}`;
+    });
+  });
+  return v
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|li|h1|h2|h3|h4|h5|h6)>/gi, "\n")
-    .replace(/<li[^>]*>/gi, "- ")
+    .replace(/<li[^>]*>/gi, "• ")
     .replace(/<[^>]*>/g, "")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
@@ -103,6 +118,9 @@ function mapERPJobToJob(company: CompanyId, source: {
     return null;
   }
   const title = source.job_title ?? source.designation ?? "Untitled role";
+  const rawDesc = (source.description ?? "").trim();
+  const looksLikeHtml = /<[a-z][\s\S]*>/i.test(rawDesc);
+  const summaryHtml = looksLikeHtml ? normalizeJobDescriptionForEditor(rawDesc) : null;
   return {
     id: docName,
     company,
@@ -110,7 +128,8 @@ function mapERPJobToJob(company: CompanyId, source: {
     department: source.department ?? "General",
     location: source.location ?? "Not specified",
     type: normalizeType(source.employment_type),
-    summary: toPlainText(source.description) || "No summary provided yet.",
+    summary: toPlainText(rawDesc) || "No summary provided yet.",
+    summaryHtml: summaryHtml || undefined,
   };
 }
 
