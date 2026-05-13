@@ -40,7 +40,7 @@ export function LoginForm({ companyId, returnTo }: Props) {
           <p className={t.eyebrow}>Applicant portal</p>
           <h1 className={t.title}>{meta.shortLabel}</h1>
           <p className={t.description}>
-            Sign in with your company account to explore open roles and apply.
+            Sign in with your ERPNext website user to browse open roles and submit applications.
           </p>
         </div>
         <form action={formAction} className="flex flex-col gap-5">
@@ -72,8 +72,8 @@ export function LoginForm({ companyId, returnTo }: Props) {
               type="password"
               autoComplete="current-password"
               required
-              minLength={6}
-              placeholder="At least 6 characters"
+              minLength={1}
+              placeholder="Your password"
               className={t.input}
             />
           </div>
@@ -85,10 +85,16 @@ export function LoginForm({ companyId, returnTo }: Props) {
           <button type="submit" disabled={pending} className={t.submit}>
             {pending ? "Signing in…" : "Sign in"}
           </button>
-          <p className={t.demoNote}>
-            Demo: any email works with a password of 6+ characters.
-          </p>
         </form>
+        <p className={`${t.footerHint} mt-4`}>
+          New here?{" "}
+          <Link
+            href={`/applicant/register?company=${companyId}${returnTo ? `&from=${encodeURIComponent(returnTo)}` : ""}`}
+            className={t.contactLink}
+          >
+            Create an account
+          </Link>
+        </p>
         <p className={t.footerHint}>
           Need help?{" "}
           <Link href="mailto:careers@example.com" className={t.contactLink}>

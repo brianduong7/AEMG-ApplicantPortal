@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getApplicationsForCompany } from "@/lib/applications";
+import { getApplicationsForCurrentApplicant } from "@/lib/applications";
 import { getPortalTheme } from "@/lib/portal-theme";
 import { getJobsByCompany } from "@/lib/jobs";
 import { getSession } from "@/lib/session";
@@ -17,7 +17,7 @@ export default async function ApplicantDashboardPage() {
 
   const t = getPortalTheme(session.company);
   const jobs = await getJobsByCompany(session.company);
-  const applications = getApplicationsForCompany(session.company);
+  const applications = await getApplicationsForCurrentApplicant(session.company);
   const greeting = hrGreetingNameFromEmail(session.email);
   const roleCount = jobs.length;
   const appCount = applications.length;

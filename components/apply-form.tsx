@@ -13,9 +13,11 @@ type Props = {
   jobs: Job[];
   initialJobId: string;
   company: CompanyId;
+  /** When set, name/email come from ERPNext Candidate (not editable). */
+  applicantIdentity?: { fullName: string; email: string };
 };
 
-export function ApplyForm({ jobs, initialJobId, company }: Props) {
+export function ApplyForm({ jobs, initialJobId, company, applicantIdentity }: Props) {
   const [state, formAction, pending] = useActionState(
     submitApplication,
     null as ApplicationState,
@@ -33,8 +35,8 @@ export function ApplyForm({ jobs, initialJobId, company }: Props) {
       <div className={th.successBox}>
         <p className="font-semibold">Application sent</p>
         <p className="mt-2 text-sm">
-          Thanks for applying for <strong>{state.jobTitle}</strong>. This demo does not
-          persist files or data—connect your API and storage when you are ready.
+          Thanks for applying for <strong>{state.jobTitle}</strong>. You can track status under
+          My applications.
         </p>
       </div>
     );
@@ -72,36 +74,54 @@ export function ApplyForm({ jobs, initialJobId, company }: Props) {
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="applicantName" className={th.label}>
-            Applicant name <span className="text-red-600">*</span>
-          </label>
-          <input
-            id="applicantName"
-            name="applicantName"
-            type="text"
-            autoComplete="name"
-            required
-            placeholder="Full name"
-            className={th.input}
-          />
-        </div>
+        {applicantIdentity ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+            <p className={th.sectionTitle}>Applying as</p>
+            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">Name</dt>
+                <dd className="mt-0.5 font-medium text-slate-900">{applicantIdentity.fullName}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">Email</dt>
+                <dd className="mt-0.5 font-medium text-slate-900">{applicantIdentity.email}</dd>
+              </div>
+            </dl>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="applicantName" className={th.label}>
+                Applicant name <span className="text-red-600">*</span>
+              </label>
+              <input
+                id="applicantName"
+                name="applicantName"
+                type="text"
+                autoComplete="name"
+                required
+                placeholder="Full name"
+                className={th.input}
+              />
+            </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="emailAddress" className={th.label}>
-            Email address <span className="text-red-600">*</span>
-          </label>
-          <input
-            id="emailAddress"
-            name="emailAddress"
-            type="email"
-            autoComplete="email"
-            inputMode="email"
-            required
-            placeholder="you@example.com"
-            className={th.input}
-          />
-        </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="emailAddress" className={th.label}>
+                Email address <span className="text-red-600">*</span>
+              </label>
+              <input
+                id="emailAddress"
+                name="emailAddress"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                required
+                placeholder="you@example.com"
+                className={th.input}
+              />
+            </div>
+          </>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="phoneNumber" className={th.label}>

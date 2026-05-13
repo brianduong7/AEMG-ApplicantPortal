@@ -5,16 +5,14 @@ import {
   createERPNextJobApplicant,
   uploadResumeForJobApplicant,
 } from "@/lib/erpnext";
-import { getSession } from "@/lib/session";
+import { getApplicantCandidateStrict } from "@/lib/applicant-candidate";
+import { getSession, isApplicantPortal } from "@/lib/session";
 
 export type ApplicationState = {
   error?: string;
   success?: boolean;
   jobTitle?: string;
 } | null;
-
-const EMAIL_RE =
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Allows common phone formats when provided. */
 const PHONE_RE = /^[\d\s+\-().]{7,20}$/;
@@ -31,13 +29,19 @@ export async function submitApplication(
   formData: FormData,
 ): Promise<ApplicationState> {
   const session = await getSession();
-  if (!session) {
+  if (!session || !isApplicantPortal(session)) {
     return { error: "Your session has expired. Please sign in again." };
   }
 
+  const candidate = await getApplicantCandidateStrict();
+  if (!candidate?.name) {
+    return {
+      error:
+        "Your candidate profile is not linked yet. Complete registration or contact support.",
+    };
+  }
+
   const jobId = String(formData.get("jobOpening") ?? "").trim();
-  const applicantName = String(formData.get("applicantName") ?? "").trim();
-  const email = String(formData.get("emailAddress") ?? "").trim();
   const phoneRaw = String(formData.get("phoneNumber") ?? "").trim();
   const country = String(formData.get("country") ?? "").trim();
 
@@ -46,12 +50,10 @@ export async function submitApplication(
     return { error: "Please select a valid job opening." };
   }
 
-  if (!applicantName) {
-    return { error: "Applicant name is required." };
-  }
-
-  if (!email || !EMAIL_RE.test(email)) {
-    return { error: "A valid email address is required." };
+  const applicantName = (candidate.full_name ?? session.email).trim();
+  const email = (candidate.email ?? session.email).trim().toLowerCase();
+  if (!applicantName || !email) {
+    return { error: "Candidate profile is missing a name or email." };
   }
 
   if (phoneRaw && !PHONE_RE.test(phoneRaw)) {
@@ -87,9 +89,10 @@ export async function submitApplication(
     const applicantId = await createERPNextJobApplicant({
       applicantName,
       email,
-      phone: phoneRaw,
+      phone: phoneRaw || candidate.phone,
       country,
       jobCode: job.id,
+      candidateDocName: candidate.name,
     });
     await uploadResumeForJobApplicant({
       applicantId,

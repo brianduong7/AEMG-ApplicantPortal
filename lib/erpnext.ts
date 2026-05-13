@@ -1,4 +1,5 @@
 import { erpCompanyNameForPortal, type CompanyId } from "@/lib/companies";
+import { humanMessageFromFrappeApiError } from "@/lib/frappe-error-message";
 
 type ERPNextJob = {
   name?: string;
@@ -45,6 +46,12 @@ function getEnv(name: string): string | undefined {
   return value ? value : undefined;
 }
 
+/** Public site URL for Frappe auth (`/api/method/login`, etc.). Does not require API keys. */
+export function getERPNextSiteBaseUrl(): string | null {
+  const baseUrl = getEnv("ERPNEXT_BASE_URL");
+  return baseUrl ?? null;
+}
+
 function getERPConfig() {
   const baseUrl = getEnv("ERPNEXT_BASE_URL");
   const apiKey = getEnv("ERPNEXT_API_KEY");
@@ -57,6 +64,14 @@ function getERPConfig() {
    */
   const jobApplicantOpeningField =
     getEnv("ERPNEXT_JOB_APPLICANT_OPENING_FIELD") ?? "job_title";
+  /** Job Applicant → Candidate link field (custom). */
+  const jobApplicantCandidateField =
+    getEnv("ERPNEXT_JOB_APPLICANT_CANDIDATE_FIELD") ?? "custom_candidate";
+  const candidateDoctype = getEnv("ERPNEXT_CANDIDATE_DOCTYPE") ?? "Candidate";
+  /** Candidate DocType field that links to User (default: `user`). */
+  const candidateUserField = getEnv("ERPNEXT_CANDIDATE_USER_FIELD") ?? "user";
+  /** Optional LinkedIn / social field on Candidate (override if your site uses `custom_linkedin`). */
+  const candidateLinkedinField = getEnv("ERPNEXT_CANDIDATE_LINKEDIN_FIELD") ?? "linkedin";
   /** Must match Job Applicant Source `name` (field `source`, not `source_name`). */
   const applicantSource =
     getEnv("ERPNEXT_APPLICANT_SOURCE") ?? getEnv("ERPNEXT_APPLICANT_SOURCE_NAME");
@@ -70,6 +85,10 @@ function getERPConfig() {
     doctype,
     openStatus,
     jobApplicantOpeningField,
+    jobApplicantCandidateField,
+    candidateDoctype,
+    candidateUserField,
+    candidateLinkedinField,
     applicantSource,
   };
 }
@@ -168,6 +187,8 @@ export async function createERPNextJobApplicant(input: {
   country?: string;
   jobCode: string;
   coverLetter?: string;
+  /** Job Applicant → Candidate (custom link), when configured. */
+  candidateDocName?: string;
 }) {
   const config = getERPConfig();
   if (!config) {
@@ -186,6 +207,11 @@ export async function createERPNextJobApplicant(input: {
   };
   const sourceFields = config.applicantSource ? { source: config.applicantSource } : {};
 
+  const candidateField =
+    input.candidateDocName?.trim() ?
+      { [config.jobApplicantCandidateField]: input.candidateDocName.trim() }
+    : {};
+
   const baseApplicant = {
     applicant_name: input.applicantName,
     email_id: input.email,
@@ -194,6 +220,7 @@ export async function createERPNextJobApplicant(input: {
     cover_letter: input.coverLetter || undefined,
     status: "Open",
     ...sourceFields,
+    ...candidateField,
   };
 
   // HRMS: the Link to Job Opening is stored in `job_title` (document name e.g. HR-OPN-2026-0002).
@@ -407,6 +434,256 @@ export type ERPNextJobApplicantRow = {
 type ERPNextApplicantListResponse = {
   data?: ERPNextJobApplicantRow[];
 };
+
+export type ERPNextCandidateRow = {
+  name?: string;
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  user?: string;
+  linkedin?: string;
+};
+
+type ERPNextCandidateListResponse = {
+  data?: ERPNextCandidateRow[];
+};
+
+/** Load Candidate linked to the given Frappe User name (usually same as email for website users). */
+export async function fetchERPNextCandidateForUserName(
+  userName: string,
+): Promise<ERPNextCandidateRow | null> {
+  const config = getERPConfig();
+  const u = userName.trim();
+  if (!config || !u) return null;
+
+  const fieldSet = new Set([
+    "name",
+    "full_name",
+    "email",
+    "phone",
+    config.candidateUserField,
+    config.candidateLinkedinField,
+  ]);
+  const fields = [...fieldSet];
+
+  const filters: unknown[] = [[config.candidateUserField, "=", u]];
+
+  const url = new URL(
+    `/api/resource/${encodeURIComponent(config.candidateDoctype)}`,
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  url.searchParams.set("fields", JSON.stringify(fields));
+  url.searchParams.set("filters", JSON.stringify(filters));
+  url.searchParams.set("limit_page_length", "1");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as ERPNextCandidateListResponse;
+  const row = json.data?.[0];
+  return row ?? null;
+}
+
+/** Job Applicants linked to a Candidate document (server-side filter; integration token). */
+export async function fetchERPNextJobApplicantsForCandidateDoc(
+  candidateDocName: string,
+): Promise<ERPNextJobApplicantRow[] | null> {
+  const config = getERPConfig();
+  const c = candidateDocName.trim();
+  if (!config || !c) return null;
+
+  const openingField = config.jobApplicantOpeningField;
+  const fields = [
+    "name",
+    "applicant_name",
+    "email_id",
+    "phone_number",
+    "status",
+    openingField,
+    "creation",
+    "resume_attachment",
+  ];
+  const filters: unknown[] = [[config.jobApplicantCandidateField, "=", c]];
+
+  const url = new URL(
+    "/api/resource/Job Applicant",
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  url.searchParams.set("fields", JSON.stringify(fields));
+  url.searchParams.set("filters", JSON.stringify(filters));
+  url.searchParams.set("limit_page_length", "100");
+  url.searchParams.set("order_by", "modified desc");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as ERPNextApplicantListResponse;
+  return json.data ?? [];
+}
+
+/**
+ * Comma-separated Role `name` values (Desk → Role). If unset, no `roles` rows are sent;
+ * Frappe assigns defaults for `user_type: "Website User"`. Do not use "Website User" here —
+ * that is a User Type, not a Role, and usually does not exist on the Role master.
+ */
+function registrationUserRolesChildTable(): { role: string }[] | undefined {
+  const raw = getEnv("ERPNEXT_REGISTRATION_USER_ROLES");
+  if (!raw) return undefined;
+  const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!parts.length) return undefined;
+  return parts.map((role) => ({ role }));
+}
+
+export type RegisterCandidateInput = {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  linkedin?: string;
+};
+
+/**
+ * Creates a Website User and a linked Candidate (integration API key).
+ * Requires permission on the integration user to insert `User` and your Candidate DocType.
+ */
+export async function registerERPNextWebsiteUserAndCandidate(
+  input: RegisterCandidateInput,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const config = getERPConfig();
+  if (!config) {
+    return { ok: false, message: "Registration is unavailable (ERPNext is not configured)." };
+  }
+
+  const email = input.email.trim().toLowerCase();
+  if (!email) {
+    return { ok: false, message: "Email is required." };
+  }
+
+  const first = input.firstName.trim();
+  const last = input.lastName.trim();
+  if (!first || !last) {
+    return { ok: false, message: "First name and last name are required." };
+  }
+  const fullName = [first, last].join(" ").trim();
+
+  const headers: Record<string, string> = {
+    Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+
+  const userEndpoint = new URL(
+    "/api/resource/User",
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+
+  const userPayload: Record<string, unknown> = {
+    email,
+    first_name: first,
+    last_name: last,
+    new_password: input.password,
+    send_welcome_email: 0,
+    enabled: 1,
+    user_type: "Website User",
+  };
+  const regRoles = registrationUserRolesChildTable();
+  if (regRoles) {
+    userPayload.roles = regRoles;
+  }
+
+  const userRes = await fetch(userEndpoint.toString(), {
+    method: "POST",
+    headers,
+    body: JSON.stringify(userPayload),
+    cache: "no-store",
+  });
+
+  if (!userRes.ok) {
+    const text = await userRes.text();
+    const lower = text.toLowerCase();
+    if (
+      lower.includes("could not find") &&
+      lower.includes("role") &&
+      lower.includes("linkvalidationerror")
+    ) {
+      return {
+        ok: false,
+        message:
+          "ERPNext could not find a Role name in the request. In Frappe, \"Website User\" is a User Type, not a Role on the Role master. " +
+          "Leave ERPNEXT_REGISTRATION_USER_ROLES unset to omit role rows, or set it to comma-separated Role names from Desk → Role (e.g. Customer).",
+      };
+    }
+    if (userRes.status === 409 || lower.includes("duplicate") || lower.includes("exists")) {
+      return {
+        ok: false,
+        message: "An account with this email already exists. Try signing in instead.",
+      };
+    }
+    return {
+      ok: false,
+      message: humanMessageFromFrappeApiError(text, userRes.status),
+    };
+  }
+
+  const candidateEndpoint = new URL(
+    `/api/resource/${encodeURIComponent(config.candidateDoctype)}`,
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+
+  const candidatePayload: Record<string, unknown> = {
+    full_name: fullName,
+    email,
+    ...(input.phone?.trim() ? { phone: input.phone.trim() } : {}),
+  };
+  candidatePayload[config.candidateUserField] = email;
+  if (input.linkedin?.trim()) {
+    candidatePayload[config.candidateLinkedinField] = input.linkedin.trim();
+  }
+
+  const candRes = await fetch(candidateEndpoint.toString(), {
+    method: "POST",
+    headers,
+    body: JSON.stringify(candidatePayload),
+    cache: "no-store",
+  });
+
+  if (!candRes.ok) {
+    const text = await candRes.text();
+    const delUrl = new URL(
+      `/api/resource/User/${encodeURIComponent(email)}`,
+      config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+    );
+    await fetch(delUrl.toString(), {
+      method: "DELETE",
+      headers: { Authorization: headers.Authorization, Accept: "application/json" },
+      cache: "no-store",
+    });
+    const lower = text.toLowerCase();
+    if (lower.includes("duplicate") || lower.includes("unique")) {
+      return {
+        ok: false,
+        message: "This email is already registered as a candidate.",
+      };
+    }
+    return {
+      ok: false,
+      message: humanMessageFromFrappeApiError(text, candRes.status),
+    };
+  }
+
+  return { ok: true };
+}
 
 type ERPNextInterviewTypeRow = { name?: string };
 

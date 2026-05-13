@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { SESSION_COOKIE } from "@/lib/auth-constants";
+import {
+  APPLICANT_COMPANY_COOKIE,
+  APPLICANT_FRAPPE_COOKIE,
+  SESSION_COOKIE,
+} from "@/lib/auth-constants";
 import { parseCompanyId } from "@/lib/companies";
 import {
   isApplicantPortal,
@@ -83,7 +87,11 @@ export function middleware(request: NextRequest) {
   }
 
   const cookieVal = request.cookies.get(SESSION_COOKIE)?.value;
-  const hasApplicantSession = applicantSessionIsValid(cookieVal);
+  const hasApplicantFrappeSession = Boolean(
+    request.cookies.get(APPLICANT_FRAPPE_COOKIE)?.value?.trim(),
+  );
+  const hasApplicantSession =
+    hasApplicantFrappeSession || applicantSessionIsValid(cookieVal);
   const hasRecruiterSession = recruiterSessionIsValid(cookieVal);
   const hasDepartmentManagerSession = departmentManagerSessionIsValid(cookieVal);
   const hasHrPortalSession = hrPortalSessionIsValid(cookieVal);
@@ -93,6 +101,8 @@ export function middleware(request: NextRequest) {
   const isDepartmentManagerLoginPath = pathname === "/department-manager/login";
   const isHrPortalLoginPath = pathname === "/hr-portal/login";
   const isApplicantLoginPath = pathname === "/applicant/login";
+  const isApplicantRegisterPath = pathname === "/applicant/register";
+  const isApplicantPublicPath = isApplicantLoginPath || isApplicantRegisterPath;
 
   if (pathname.startsWith("/recruiter") && !isRecruiterLoginPath) {
     if (!hasRecruiterSession) {
@@ -145,7 +155,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith("/applicant") && !isApplicantLoginPath) {
+  if (pathname.startsWith("/applicant") && !isApplicantPublicPath) {
     if (hasRecruiterSession && !hasApplicantSession) {
       return NextResponse.redirect(new URL("/recruiter/dashboard", request.url));
     }
@@ -167,7 +177,25 @@ export function middleware(request: NextRequest) {
       login.searchParams.set("company", company);
       const res = NextResponse.redirect(login);
       if (hasCookie) res.cookies.delete(SESSION_COOKIE);
+      res.cookies.delete(APPLICANT_FRAPPE_COOKIE);
+      res.cookies.delete(APPLICANT_COMPANY_COOKIE);
       return res;
+    }
+    return NextResponse.next();
+  }
+
+  if (isApplicantRegisterPath) {
+    if (hasRecruiterSession && !hasApplicantSession) {
+      return NextResponse.redirect(new URL("/recruiter/dashboard", request.url));
+    }
+    if (hasDepartmentManagerSession && !hasApplicantSession) {
+      return NextResponse.redirect(new URL("/department-manager/dashboard", request.url));
+    }
+    if (hasHrPortalSession && !hasApplicantSession) {
+      return NextResponse.redirect(new URL("/hr-portal/dashboard", request.url));
+    }
+    if (hasApplicantSession) {
+      return NextResponse.redirect(new URL("/applicant/dashboard", request.url));
     }
     return NextResponse.next();
   }

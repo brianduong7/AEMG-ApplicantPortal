@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { resolveApplicantSessionPayload } from "@/lib/applicant-erpnext-session";
 import { SESSION_COOKIE } from "@/lib/auth-constants";
 import { parseCompanyId, type CompanyId } from "@/lib/companies";
 
@@ -63,6 +64,9 @@ export function isApplicantPortal(session: SessionPayload): boolean {
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
+  const applicant = await resolveApplicantSessionPayload();
+  if (applicant) return applicant;
+
   const store = await cookies();
   const raw = store.get(SESSION_COOKIE)?.value;
   return parseSessionCookieJson(raw ?? undefined);

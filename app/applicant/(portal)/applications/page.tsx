@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getApplicationsForCompany } from "@/lib/applications";
+import { getApplicantCandidateStrict } from "@/lib/applicant-candidate";
+import { fetchJobApplicantsForCandidate } from "@/lib/applications";
+import { hasERPNextConfig } from "@/lib/erpnext";
 import { getPortalTheme } from "@/lib/portal-theme";
 import { getSession } from "@/lib/session";
 
@@ -14,19 +16,36 @@ export default async function ApplicantApplicationsPage() {
   if (!session) redirect("/applicant/login?intent=applicant");
 
   const t = getPortalTheme(session.company);
-  const applications = getApplicationsForCompany(session.company);
+
+  const erpConfigured = hasERPNextConfig();
+  const candidate = erpConfigured ? await getApplicantCandidateStrict() : null;
+
+  const applications =
+    candidate?.name ? await fetchJobApplicantsForCandidate(candidate.name) : [];
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className={t.pageTitle}>My applications</h1>
+        <h1 className={t.pageTitle}>
+          My applications
+        </h1>
         <p className={t.pageSubtitle}>
-          Track the jobs you have applied for in this company portal.
+          Job applications you have submitted, linked to your Candidate profile in ERPNext.
         </p>
       </div>
 
       <section className={t.applySection}>
-        {applications.length === 0 ? (
+        {!erpConfigured ? (
+          <p className={t.applySectionHint}>
+            Applications cannot be loaded yet — ERPNext API keys are not configured on this
+            server.
+          </p>
+        ) : !candidate?.name ? (
+          <p className={t.applySectionHint}>
+            No Candidate profile is linked to your account, so your applications cannot be listed.
+            Complete registration or ask HR to link your user to a Candidate in ERPNext.
+          </p>
+        ) : applications.length === 0 ? (
           <p className={t.applySectionHint}>No applications yet.</p>
         ) : (
           <ul className="flex flex-col gap-3">

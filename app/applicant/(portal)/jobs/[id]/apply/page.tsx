@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { getApplicantCandidateStrict } from "@/lib/applicant-candidate";
 import { ApplyForm } from "@/components/apply-form";
 import { JobDescriptionBox } from "@/components/job-description-box";
 import { getJobById, getJobsByCompany } from "@/lib/jobs";
@@ -31,6 +32,36 @@ export default async function ApplicantApplyPage({ params }: Props) {
     ? jobs
     : [job, ...jobs];
 
+  const candidate = await getApplicantCandidateStrict();
+  if (!candidate?.name) {
+    return (
+      <div className="flex flex-col gap-8">
+        <div>
+          <Link href="/applicant/jobs" className={t.backLink}>
+            ← All roles
+          </Link>
+          <h1 className={`mt-4 ${t.pageTitle}`}>Candidate profile required</h1>
+          <p className={`mt-3 ${t.applySectionHint}`}>
+            Your account is signed in, but no Candidate record is linked to your user in ERPNext.
+            If you just registered, contact your administrator. You can still review open roles
+            below.
+          </p>
+        </div>
+        <Link
+          href="/applicant/jobs"
+          className="inline-flex w-fit rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
+        >
+          Back to job list
+        </Link>
+      </div>
+    );
+  }
+
+  const applicantIdentity = {
+    fullName: (candidate.full_name ?? session.email).trim(),
+    email: (candidate.email ?? session.email).trim(),
+  };
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -57,6 +88,7 @@ export default async function ApplicantApplyPage({ params }: Props) {
             jobs={jobsForForm}
             initialJobId={job.id}
             company={session.company}
+            applicantIdentity={applicantIdentity}
           />
         </div>
       </section>
