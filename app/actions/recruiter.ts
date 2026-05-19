@@ -3,18 +3,27 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  createERPNextDesignation,
   createERPNextInterview,
   createERPNextJobOpening,
   updateERPNextJobOpening,
 } from "@/lib/erpnext";
 import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
-import { getSession, isRecruiterPortal } from "@/lib/session";
+import { parseCompanyId } from "@/lib/companies";
+import { getSession, isRecruiterPortal, isStaffPortalSession } from "@/lib/session";
+import { staffHasRecruiterCapabilities, staffRolesFromSession } from "@/lib/staff-roles";
 
 export type RecruiterFormState = { error?: string; ok?: string } | null;
 
-async function requireRecruiterInAction() {
+export async function requireRecruiterInAction() {
   const session = await getSession();
-  if (!session || !isRecruiterPortal(session)) {
+  if (!session) throw new Error("Unauthorized");
+  if (isStaffPortalSession(session)) {
+    const roles = staffRolesFromSession(session);
+    if (!staffHasRecruiterCapabilities(roles)) throw new Error("Unauthorized");
+    return session;
+  }
+  if (!isRecruiterPortal(session)) {
     throw new Error("Unauthorized");
   }
   return session;
@@ -35,9 +44,10 @@ export async function createOpeningForRecruiter(
     const statusRaw = String(formData.get("status") ?? "Open").trim();
     const status = statusRaw === "Closed" ? "Closed" : "Open";
     const publish = formData.get("publish") === "on" ? 1 : 0;
+    const jobRequisition = String(formData.get("jobRequisition") ?? "").trim();
 
     if (!jobTitle || !designation) {
-      return { error: "Job title and designation are required (designation must exist in ERPNext)." };
+      return { error: "Job title and designation are required." };
     }
 
     await createERPNextJobOpening({
@@ -50,13 +60,14 @@ export async function createOpeningForRecruiter(
       description: description || undefined,
       status,
       publish,
+      jobRequisition: jobRequisition || undefined,
     });
-    revalidatePath("/recruiter/openings");
+    revalidatePath("/staff/openings");
   } catch (err) {
     const message = err instanceof Error ? err.message : "Could not create opening.";
     return { error: message };
   }
-  redirect("/recruiter/openings");
+  redirect("/staff/openings");
 }
 
 export async function updateOpeningForRecruiter(
@@ -77,6 +88,7 @@ export async function updateOpeningForRecruiter(
     const statusRaw = String(formData.get("status") ?? "Open").trim();
     const status = statusRaw === "Closed" ? "Closed" : "Open";
     const publish = formData.get("publish") === "on" ? 1 : 0;
+    const jobRequisition = String(formData.get("jobRequisition") ?? "").trim();
 
     if (!jobTitle || !designation) {
       return { error: "Job title and designation are required." };
@@ -91,14 +103,38 @@ export async function updateOpeningForRecruiter(
       description,
       status,
       publish,
+      jobRequisition: jobRequisition || null,
     });
-    revalidatePath("/recruiter/openings");
-    revalidatePath(`/recruiter/openings/${encodeURIComponent(docName)}/edit`);
+    revalidatePath("/staff/openings");
+    revalidatePath(`/staff/openings/${encodeURIComponent(docName)}/edit`);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Could not update opening.";
     return { error: message };
   }
-  redirect("/recruiter/openings");
+  redirect("/staff/openings");
+}
+
+export async function createDesignationForRecruiter(
+  _prev: RecruiterFormState,
+  formData: FormData,
+): Promise<RecruiterFormState> {
+  try {
+    await requireRecruiterInAction();
+    const designation = String(formData.get("designationTitle") ?? "").trim();
+    const description = String(formData.get("designationDescription") ?? "").trim();
+    if (!designation) return { error: "Designation title is required." };
+
+    const name = await createERPNextDesignation({
+      designation,
+      description: description || undefined,
+    });
+    revalidatePath("/staff/openings/new");
+    revalidatePath("/staff/openings");
+    return { ok: name };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not create designation.";
+    return { error: message };
+  }
 }
 
 export async function scheduleInterviewForRecruiter(
@@ -116,11 +152,40 @@ export async function scheduleInterviewForRecruiter(
     const scheduledOn = String(formData.get("scheduledOn") ?? "").trim();
     const fromTime = String(formData.get("fromTime") ?? "").trim();
     const toTime = String(formData.get("toTime") ?? "").trim();
+    const interviewRound = String(formData.get("interviewRound") ?? "").trim();
     const interviewType = String(formData.get("interviewType") ?? "").trim();
+    const interviewerUsersJson = String(formData.get("interviewerUsersJson") ?? "").trim();
     const interviewerUser = String(formData.get("interviewerUser") ?? "").trim();
+
+    let interviewerUsers: string[] | undefined;
+    if (interviewerUser) {
+      interviewerUsers = [interviewerUser];
+    }
+    if (interviewerUsersJson) {
+      try {
+        const parsed = JSON.parse(interviewerUsersJson) as unknown;
+        if (!Array.isArray(parsed)) {
+          return { error: "Interviewers must be a JSON array of user ids." };
+        }
+        const ids = parsed
+          .filter((x): x is string => typeof x === "string")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (ids.length) interviewerUsers = ids;
+      } catch {
+        return { error: "Could not read selected interviewers. Try again." };
+      }
+    }
 
     if (!scheduledOn || !fromTime || !toTime) {
       return { error: "Date, start time, and end time are required." };
+    }
+
+    if (!interviewRound && !interviewType) {
+      return {
+        error:
+          "Select an interview round (HRMS v15) or an interview type (newer HRMS), or set a default in environment.",
+      };
     }
 
     const fromNorm = fromTime.length === 5 ? `${fromTime}:00` : fromTime;
@@ -131,13 +196,16 @@ export async function scheduleInterviewForRecruiter(
       scheduledOn,
       fromTime: fromNorm,
       toTime: toNorm,
+      interviewRound: interviewRound || undefined,
       interviewType: interviewType || undefined,
-      interviewerUser: interviewerUser || undefined,
+      interviewerUsers,
     });
-    revalidatePath(`/recruiter/applicants/${encodeURIComponent(applicantName)}`);
+    revalidatePath(`/staff/applicants/${encodeURIComponent(applicantName)}`);
+    revalidatePath("/staff/interviews");
     return { ok: "Interview scheduled in ERPNext." };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Could not schedule interview.";
     return { error: message };
   }
 }
+

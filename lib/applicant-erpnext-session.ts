@@ -79,11 +79,17 @@ export async function erpnextLoginWithPassword(
   const failedBody = frappeJsonLooksLikeFailure(json) || !res.ok;
   if (failedBody || cookieHeader.length === 0) {
     if (json && (frappeJsonLooksLikeFailure(json) || !res.ok)) {
-      const parsed = humanMessageFromFrappeJsonValue(json);
+      const parsed = humanMessageFromFrappeJsonValue(json, res.status);
       if (parsed) return { ok: false, message: parsed };
     }
     if (!res.ok) {
-      return { ok: false, message: "Invalid email or password." };
+      return {
+        ok: false,
+        message:
+          res.status === 401 || res.status === 403 ?
+            "Invalid email or password."
+          : "Sign-in failed. Please check your details and try again.",
+      };
     }
     if (cookieHeader.length === 0) {
       return {
@@ -194,7 +200,7 @@ export async function resolveApplicantSessionPayload(): Promise<ApplicantResolve
 
   const user = await erpnextGetLoggedUser(cookieHeader);
   if (!user) {
-    await clearApplicantFrappeSessionCookies();
+    /** Do not clear cookies here — mutating cookies during `getSession()` / RSC throws in Next.js. Use middleware `staleSession=1` on applicant login or `logout`. */
     return null;
   }
 

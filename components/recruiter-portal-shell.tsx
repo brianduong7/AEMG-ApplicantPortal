@@ -192,7 +192,7 @@ type Props = {
 export function RecruiterPortalShell({ children, email, companyId }: Props) {
   const pathname = usePathname() ?? "";
   const brand = COMPANIES[companyId];
-  const t = getRecruiterShellTheme(companyId);
+  const t = getRecruiterShellTheme();
   const greeting = hrGreetingNameFromEmail(email);
   const [navOpen, setNavOpen] = useState(false);
 

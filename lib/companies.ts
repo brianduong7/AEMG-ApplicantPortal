@@ -1,5 +1,8 @@
 export type CompanyId = "aemg" | "aife";
 
+/** Unified recruiter portal: ERP desk context defaults here (chrome is always AIFE-themed). */
+export const RECRUITER_PORTAL_DEFAULT_COMPANY: CompanyId = "aife";
+
 export const COMPANY_IDS: CompanyId[] = ["aemg", "aife"];
 
 export function parseCompanyId(raw: unknown): CompanyId | null {
