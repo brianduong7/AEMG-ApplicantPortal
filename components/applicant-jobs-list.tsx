@@ -68,7 +68,10 @@ export function ApplicantJobsList({ jobs, theme }: Props) {
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2 text-xs">
                     <span className={theme.jobPillPrimary}>{job.department}</span>
-                    <span className={theme.jobPillMuted}>{job.location}</span>
+                    {job.location.trim() &&
+                    job.location.trim().toLowerCase() !== "not specified" ?
+                      <span className={theme.jobPillMuted}>{job.location}</span>
+                    : null}
                     <span className={theme.jobPillMuted}>{job.type}</span>
                   </div>
                 </div>
