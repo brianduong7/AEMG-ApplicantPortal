@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { InterviewActionsPanel } from "@/components/interview-actions-panel";
 import { InterviewSummaryForm } from "@/components/interview-summary-form";
 import {
   fetchERPNextInterviewByName,
@@ -10,7 +11,11 @@ import {
 } from "@/lib/erpnext";
 import { readStaffFrappeCookieHeader } from "@/lib/staff-erpnext-session";
 import { staffUseDepartmentManagerDataPlane } from "@/lib/staff-data-plane";
-import { staffHasRecruiterCapabilities, staffRolesFromSession } from "@/lib/staff-roles";
+import {
+  staffHasHrCapabilities,
+  staffHasRecruiterCapabilities,
+  staffRolesFromSession,
+} from "@/lib/staff-roles";
 import { requireStaffRoles } from "@/lib/staff-session";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +39,9 @@ export default async function StaffInterviewDetailPage({ params }: Props) {
     "d_executive",
     "super_admin",
   ]);
-  const canEditSummary = staffHasRecruiterCapabilities(roles);
+  const canManageInterview =
+    staffHasRecruiterCapabilities(roles) || staffHasHrCapabilities(roles);
+  const canEditSummary = canManageInterview;
 
   const { id } = await params;
   const interviewName = decodeURIComponent(id);
@@ -114,6 +121,24 @@ export default async function StaffInterviewDetailPage({ params }: Props) {
           </div>
         </dl>
       </section>
+
+      {canManageInterview ?
+        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Actions
+          </h2>
+          <div className="mt-4">
+            <InterviewActionsPanel
+              docName={interview.name}
+              status={interview.status}
+              docstatus={interview.docstatus}
+              scheduledOn={interview.scheduled_on}
+              fromTime={interview.from_time}
+              toTime={interview.to_time}
+            />
+          </div>
+        </section>
+      : null}
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">

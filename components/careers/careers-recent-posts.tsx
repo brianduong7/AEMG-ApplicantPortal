@@ -20,14 +20,14 @@ export function CareersRecentPosts({ jobs, currentSlug }: Props) {
   if (items.length === 0) return null;
 
   return (
-    <aside className="rounded-lg border border-slate-200/80 bg-white p-5 shadow-sm">
+    <aside className="h-fit self-start rounded-lg border border-slate-200/80 bg-white p-5 shadow-sm lg:sticky lg:top-6">
       <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900">Recent Posts</h2>
       <ul className="mt-4 space-y-4">
         {items.map((job) => (
           <li key={job.id}>
             <Link
               href={careerJobPath(job)}
-              className="group block text-sm font-semibold leading-snug text-slate-900 transition hover:text-[#0077b6]"
+              className="group block text-sm font-semibold leading-snug text-slate-900 transition hover:text-[#0d4f6e]"
             >
               {job.title}
             </Link>

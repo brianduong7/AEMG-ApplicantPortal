@@ -1,7 +1,7 @@
 import type { CompanyId } from "@/lib/companies";
 import { COMPANY_IDS } from "@/lib/companies";
 import { fetchERPNextJobOpeningByDocName, fetchERPNextJobs } from "@/lib/erpnext";
-import { normalizeJobDescriptionForEditor } from "@/lib/job-description-html";
+import { prepareJobDescriptionForDisplay } from "@/lib/job-description-html";
 
 export type Job = {
   id: string;
@@ -119,8 +119,7 @@ function mapERPJobToJob(company: CompanyId, source: {
   }
   const title = source.job_title ?? source.designation ?? "Untitled role";
   const rawDesc = (source.description ?? "").trim();
-  const looksLikeHtml = /<[a-z][\s\S]*>/i.test(rawDesc);
-  const summaryHtml = looksLikeHtml ? normalizeJobDescriptionForEditor(rawDesc) : null;
+  const summaryHtml = prepareJobDescriptionForDisplay(rawDesc).html;
   return {
     id: docName,
     company,

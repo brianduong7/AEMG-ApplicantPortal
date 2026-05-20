@@ -1,7 +1,10 @@
 import type { CompanyId } from "@/lib/companies";
 import { assignUniqueCareerSlugs, slugifyJobTitle } from "@/lib/careers-slug";
-import { fetchERPNextPublishedJobOpenings } from "@/lib/erpnext";
-import { normalizeJobDescriptionForEditor } from "@/lib/job-description-html";
+import {
+  fetchERPNextPublicCareerJobOpenings,
+  fetchERPNextPublishedJobOpenings,
+} from "@/lib/erpnext";
+import { prepareJobDescriptionForDisplay } from "@/lib/job-description-html";
 
 export type CareerJob = {
   id: string;
@@ -18,10 +21,13 @@ export type CareerJob = {
 function companyIdFromERP(erpCompany?: string): CompanyId {
   const raw = erpCompany?.trim();
   if (!raw) return "aemg";
+  const lower = raw.toLowerCase();
   const aife = (process.env.ERPNEXT_AIFE_COMPANY ?? "AIFE").trim().toLowerCase();
   const aemg = (process.env.ERPNEXT_AEMG_COMPANY ?? "AEMG").trim().toLowerCase();
-  if (raw.toLowerCase() === aife) return "aife";
-  if (raw.toLowerCase() === aemg) return "aemg";
+  if (lower === aife || lower.includes("aife") || lower.includes("future education")) {
+    return "aife";
+  }
+  if (lower === aemg || lower.includes("aemg")) return "aemg";
   return "aemg";
 }
 
@@ -52,7 +58,7 @@ function mapRow(row: {
   if (!id) return null;
   const title = (row.job_title ?? row.designation ?? "Role").trim();
   const rawDesc = (row.description ?? "").trim();
-  const descriptionHtml = normalizeJobDescriptionForEditor(rawDesc);
+  const descriptionHtml = prepareJobDescriptionForDisplay(rawDesc).html ?? "";
   return {
     id,
     slug: "",
@@ -73,6 +79,16 @@ export async function getPublishedCareerJobs(): Promise<CareerJob[]> {
   return assignUniqueCareerSlugs(mapped);
 }
 
+/** Public careers pages: open status only (no publish-on-website gate). */
+export async function getPublicCareerJobsForCompany(company: CompanyId): Promise<CareerJob[]> {
+  const rows = await fetchERPNextPublicCareerJobOpenings();
+  if (!rows?.length) return [];
+  const mapped = rows
+    .map(mapRow)
+    .filter((j): j is CareerJob => j !== null && j.company === company);
+  return assignUniqueCareerSlugs(mapped);
+}
+
 export async function getCareerJobByDocId(docId: string): Promise<CareerJob | undefined> {
   const trimmed = docId.trim();
   if (!trimmed) return undefined;
@@ -80,11 +96,15 @@ export async function getCareerJobByDocId(docId: string): Promise<CareerJob | un
   return jobs.find((j) => j.id === trimmed);
 }
 
-export async function getCareerJobBySlug(slug: string): Promise<CareerJob | undefined> {
+export async function getCareerJobBySlug(
+  slug: string,
+  company?: CompanyId,
+): Promise<CareerJob | undefined> {
   const trimmed = slug.trim().toLowerCase();
   if (!trimmed) return undefined;
 
-  const jobs = await getPublishedCareerJobs();
+  const jobs =
+    company ? await getCareerJobsForCompany(company) : await getPublishedCareerJobs();
   const bySlug = jobs.find((j) => j.slug === trimmed);
   if (bySlug) return bySlug;
 
@@ -102,6 +122,5 @@ export function careerJobPath(job: Pick<CareerJob, "slug">): string {
 }
 
 export async function getCareerJobsForCompany(company: CompanyId): Promise<CareerJob[]> {
-  const jobs = await getPublishedCareerJobs();
-  return jobs.filter((j) => j.company === company);
+  return getPublicCareerJobsForCompany(company);
 }

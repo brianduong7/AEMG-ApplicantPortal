@@ -24,3 +24,20 @@ export const JOB_DESCRIPTION_PREVIEW_HTML_CLASS =
     "[&_li[data-list=ordered]]:[list-style-type:decimal]",
     "[&_li[data-list=bullet]]:[list-style-type:disc]",
   ].join(" ");
+
+/** Applicant portal job opening list cards — indented, 5-line grey preview. */
+export const APPLICANT_JOBS_LIST_DESCRIPTION_CLASS =
+  [
+    "job-desc-preview max-w-none mt-2 pl-4 text-sm leading-relaxed text-slate-500",
+    "line-clamp-5 overflow-hidden",
+    "[&_a]:break-all [&_a]:text-blue-600 [&_a]:underline",
+    "[&_h1]:mb-1 [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-slate-600",
+    "[&_h2]:mb-1 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-slate-600",
+    "[&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-600",
+    "[&_li]:my-0.5 [&_li]:text-slate-500 [&_li]:pl-0 [&_li]:[list-style-position:outside]",
+    "[&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol>li]:[list-style-type:decimal]",
+    "[&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ul>li]:[list-style-type:disc]",
+    "[&_p]:mb-1 [&_p]:text-slate-500 [&_p:last-child]:mb-0",
+    "[&_p:has(>strong:only-child)]:font-semibold [&_p:has(>strong:only-child)]:text-slate-600",
+    "[&_strong]:font-semibold [&_strong]:text-slate-600",
+  ].join(" ");

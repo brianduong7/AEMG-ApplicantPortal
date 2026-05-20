@@ -24,7 +24,7 @@ export function RecruiterRegisterForm({ returnTo }: Props) {
       <div className={t.overlay} />
       <div className={t.card}>
         <div className="mb-6 flex justify-center">
-          <RecruiterBrandLogos layout="auth" />
+          <RecruiterBrandLogos layout="auth" aifeOnBrandBackground />
         </div>
         <div className="mb-8 text-center">
           <p className={t.eyebrow}>Recruiter portal</p>

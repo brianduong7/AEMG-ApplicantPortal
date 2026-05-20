@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { Job } from "@/lib/jobs";
-import { JOB_DESCRIPTION_PREVIEW_HTML_CLASS } from "@/lib/job-description-preview-classes";
+import { APPLICANT_JOBS_LIST_DESCRIPTION_CLASS } from "@/lib/job-description-preview-classes";
 import type { PortalTheme } from "@/lib/portal-theme";
 
 type Props = {
@@ -56,17 +56,11 @@ export function ApplicantJobsList({ jobs, theme }: Props) {
                     </h2>
                     {job.summaryHtml?.trim() ?
                       <div
-                        className={`${JOB_DESCRIPTION_PREVIEW_HTML_CLASS} mt-2 max-h-[4.5rem] overflow-hidden`}
+                        className={APPLICANT_JOBS_LIST_DESCRIPTION_CLASS}
                         dangerouslySetInnerHTML={{ __html: job.summaryHtml.trim() }}
                       />
                     : <p
-                        className={theme.jobCardBody}
-                        style={{
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                        }}
+                        className={`${theme.jobCardBody} mt-2 pl-4 text-slate-500 line-clamp-5`}
                       >
                         {job.summary}
                       </p>

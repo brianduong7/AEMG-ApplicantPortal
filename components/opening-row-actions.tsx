@@ -4,9 +4,11 @@ import { IconEye, IconPencil, IconUsers } from "@/components/icons";
 type Props = {
   openingId: string;
   canEdit?: boolean;
+  /** View opening only (no edit or applicants shortcuts). */
+  viewOnly?: boolean;
 };
 
-export function OpeningRowActions({ openingId, canEdit = true }: Props) {
+export function OpeningRowActions({ openingId, canEdit = true, viewOnly = false }: Props) {
   const viewHref = `/staff/openings/${encodeURIComponent(openingId)}`;
   const editHref = `/staff/openings/${encodeURIComponent(openingId)}/edit`;
   const applicantsHref = `/staff/applicants?opening=${encodeURIComponent(openingId)}`;
@@ -19,19 +21,21 @@ export function OpeningRowActions({ openingId, canEdit = true }: Props) {
       <Link href={viewHref} className={btn} title="View opening" aria-label="View opening">
         <IconEye />
       </Link>
-      {canEdit ?
+      {!viewOnly && canEdit ?
         <Link href={editHref} className={btn} title="Edit opening" aria-label="Edit opening">
           <IconPencil />
         </Link>
       : null}
-      <Link
-        href={applicantsHref}
-        className={btn}
-        title="View applicants"
-        aria-label="View applicants"
-      >
-        <IconUsers />
-      </Link>
+      {!viewOnly ?
+        <Link
+          href={applicantsHref}
+          className={btn}
+          title="View applicants"
+          aria-label="View applicants"
+        >
+          <IconUsers />
+        </Link>
+      : null}
     </div>
   );
 }

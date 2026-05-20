@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { JobRequisitionApproveButton } from "@/components/job-requisition-approve-button";
+import { JobRequisitionReviewActions } from "@/components/job-requisition-review-actions";
 import {
   fetchERPNextJobRequisitions,
   hasERPNextConfig,
   JOB_REQUISITION_STATUS_OPEN_APPROVED,
   JOB_REQUISITION_STATUS_PENDING,
+  resolveJobRequisitionRequesterIds,
 } from "@/lib/erpnext";
 import { STAFF_PORTAL_BASE } from "@/lib/staff-portal-base";
 import {
@@ -59,7 +60,11 @@ export default async function StaffJobRequisitionsPage() {
   } else if (showAll) {
     rows = (await fetchERPNextJobRequisitions({})) ?? [];
   } else {
-    rows = (await fetchERPNextJobRequisitions({ requestedBy: session.email })) ?? [];
+    const requesterIds = await resolveJobRequisitionRequesterIds(session.email);
+    rows =
+      (await fetchERPNextJobRequisitions({
+        requestedByIn: requesterIds.length > 0 ? requesterIds : [session.email],
+      })) ?? [];
   }
 
   return (
@@ -129,7 +134,7 @@ export default async function StaffJobRequisitionsPage() {
                     {canApprove ?
                       <td className="px-4 py-3 text-right">
                         {isPending && id ?
-                          <JobRequisitionApproveButton docName={id} />
+                          <JobRequisitionReviewActions docName={id} />
                         : <span className="text-xs text-slate-400">—</span>}
                       </td>
                     : null}

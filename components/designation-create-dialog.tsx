@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import {
   createDesignationForRecruiter,
   type RecruiterFormState,
@@ -18,7 +18,17 @@ export function DesignationCreateDialog({ open, onClose, onCreated }: Props) {
     createDesignationForRecruiter,
     null as RecruiterFormState,
   );
+  const [, startTransition] = useTransition();
+  const [clientError, setClientError] = useState<string | null>(null);
   const handled = useRef<string | null>(null);
+  const formKey = open ? "designation-dialog-open" : "designation-dialog-closed";
+
+  useEffect(() => {
+    if (!open) {
+      handled.current = null;
+      setClientError(null);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!state?.ok || state.ok === handled.current) return;
@@ -28,6 +38,8 @@ export function DesignationCreateDialog({ open, onClose, onCreated }: Props) {
   }, [state?.ok, onCreated, onClose]);
 
   if (!open) return null;
+
+  const displayError = clientError ?? state?.error;
 
   return (
     <div
@@ -62,7 +74,23 @@ export function DesignationCreateDialog({ open, onClose, onCreated }: Props) {
           </button>
         </div>
 
-        <form action={formAction} className="mt-5 flex flex-col gap-4">
+        <form
+          key={formKey}
+          className="mt-5 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setClientError(null);
+            const form = e.currentTarget;
+            const title = String(new FormData(form).get("designationTitle") ?? "").trim();
+            if (!title) {
+              setClientError("Designation title is required.");
+              return;
+            }
+            startTransition(() => {
+              formAction(new FormData(form));
+            });
+          }}
+        >
           <div className="flex flex-col gap-1.5">
             <label htmlFor="designationTitle" className="text-sm font-medium text-slate-700">
               Designation title <span className="text-red-600">*</span>
@@ -88,9 +116,9 @@ export function DesignationCreateDialog({ open, onClose, onCreated }: Props) {
               placeholder="Optional summary of this role"
             />
           </div>
-          {state?.error ?
+          {displayError ?
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
-              {state.error}
+              {displayError}
             </p>
           : null}
           <div className="flex justify-end gap-2 pt-1">

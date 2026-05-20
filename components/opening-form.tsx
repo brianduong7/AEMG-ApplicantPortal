@@ -8,7 +8,10 @@ import {
 } from "@/app/actions/recruiter";
 import { DesignationCreateDialog } from "@/components/designation-create-dialog";
 import { IconPlus } from "@/components/icons";
-import { normalizeJobDescriptionForEditor } from "@/lib/job-description-html";
+import {
+  normalizeJobDescriptionForEditor,
+  prepareJobDescriptionForDisplay,
+} from "@/lib/job-description-html";
 import { JOB_DESCRIPTION_PREVIEW_HTML_CLASS } from "@/lib/job-description-preview-classes";
 
 type Initial = {
@@ -294,7 +297,10 @@ export function OpeningForm(props: Props) {
                 {description.trim() ?
                   <div
                     className={JOB_DESCRIPTION_PREVIEW_HTML_CLASS}
-                    dangerouslySetInnerHTML={{ __html: description }}
+                    dangerouslySetInnerHTML={{
+                      __html:
+                        prepareJobDescriptionForDisplay(description).html ?? description,
+                    }}
                   />
                 : <p className="text-sm italic text-slate-500">No description yet.</p>}
               </div>

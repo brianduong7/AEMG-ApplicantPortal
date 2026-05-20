@@ -5,6 +5,7 @@ import {
   createERPNextInterview,
   hasERPNextConfig,
 } from "@/lib/erpnext";
+import { normalizeErpTime } from "@/lib/erp-time";
 import { loadApplicantForDepartmentManagerPortal } from "@/lib/department-manager-applicants";
 import { getSession, isDepartmentManagerPortal } from "@/lib/session";
 import type { RecruiterFormState } from "@/app/actions/recruiter";
@@ -72,14 +73,11 @@ export async function scheduleInterviewForDepartmentManager(
       };
     }
 
-    const fromNorm = fromTime.length === 5 ? `${fromTime}:00` : fromTime;
-    const toNorm = toTime.length === 5 ? `${toTime}:00` : toTime;
-
     await createERPNextInterview({
       jobApplicantName: applicantName,
       scheduledOn,
-      fromTime: fromNorm,
-      toTime: toNorm,
+      fromTime: normalizeErpTime(fromTime),
+      toTime: normalizeErpTime(toTime),
       interviewRound: interviewRound || undefined,
       interviewType: interviewType || undefined,
       interviewerUsers,

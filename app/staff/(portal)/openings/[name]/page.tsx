@@ -3,12 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { JobDescriptionBox } from "@/components/job-description-box";
 import { IconPencil } from "@/components/icons";
-import { careerJobPath, getCareerJobByDocId } from "@/lib/careers";
+import { careerJobPath } from "@/lib/careers";
+import { getPublicCareerJobByDocId } from "@/lib/careers-site";
+import { loadJobOpeningForDepartmentManagerView } from "@/lib/department-manager-openings";
+import { staffUseDepartmentManagerDataPlane } from "@/lib/staff-data-plane";
 import {
   fetchERPNextJobOpeningByDocName,
   hasERPNextConfig,
 } from "@/lib/erpnext";
-import { normalizeJobDescriptionForEditor } from "@/lib/job-description-html";
 import { requireStaffRoles } from "@/lib/staff-session";
 import { staffHasRecruiterCapabilities, staffRolesFromSession } from "@/lib/staff-roles";
 
@@ -25,25 +27,30 @@ type Props = {
 export default async function StaffOpeningViewPage({ params }: Props) {
   const { session } = await requireStaffRoles([
     "d_recruiter",
+    "d_department_manager",
     "d_hr",
     "d_executive",
     "super_admin",
   ]);
-  const canEdit = staffHasRecruiterCapabilities(staffRolesFromSession(session));
+  const roles = staffRolesFromSession(session);
+  const isDm = staffUseDepartmentManagerDataPlane(session);
+  const canEdit = staffHasRecruiterCapabilities(roles);
 
   const { name } = await params;
   const decoded = decodeURIComponent(name);
 
   if (!hasERPNextConfig()) notFound();
 
-  const [row, careerPreview] = await Promise.all([
-    fetchERPNextJobOpeningByDocName(decoded),
-    getCareerJobByDocId(decoded),
-  ]);
+  const row =
+    isDm ?
+      await loadJobOpeningForDepartmentManagerView(session.email, decoded)
+    : await fetchERPNextJobOpeningByDocName(decoded);
   if (!row) notFound();
 
+  const careerPreview = await getPublicCareerJobByDocId(decoded);
+
   const title = row.job_title ?? row.designation ?? "Job opening";
-  const descriptionHtml = normalizeJobDescriptionForEditor(row.description ?? "");
+  const descriptionRaw = row.description?.trim() ?? "";
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,6 +64,9 @@ export default async function StaffOpeningViewPage({ params }: Props) {
           </Link>
           <h1 className="mt-2 text-2xl font-semibold text-slate-900">{title}</h1>
           <p className="mt-1 font-mono text-xs text-slate-500">{decoded}</p>
+          {isDm ?
+            <p className="mt-2 text-xs font-medium text-slate-500">View only</p>
+          : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {careerPreview ?
@@ -110,6 +120,10 @@ export default async function StaffOpeningViewPage({ params }: Props) {
               <dd className="mt-0.5 text-slate-800">{row.location ?? "—"}</dd>
             </div>
             <div>
+              <dt className="text-slate-500">Company</dt>
+              <dd className="mt-0.5 text-slate-800">{row.company ?? "—"}</dd>
+            </div>
+            <div>
               <dt className="text-slate-500">Published</dt>
               <dd className="mt-0.5 text-slate-800">{row.publish === 1 ? "Yes" : "No"}</dd>
             </div>
@@ -121,19 +135,20 @@ export default async function StaffOpeningViewPage({ params }: Props) {
             Description
           </h2>
           <div className="mt-4">
-            <JobDescriptionBox
-              text="No description provided."
-              html={descriptionHtml || undefined}
-            />
+            {descriptionRaw ?
+              <JobDescriptionBox scrollable compact={false} text={descriptionRaw} />
+            : <p className="text-sm text-slate-600">No description provided.</p>}
           </div>
         </section>
 
-        <Link
-          href={`/staff/applicants?opening=${encodeURIComponent(decoded)}`}
-          className="text-sm font-medium text-[#0d4f6e] hover:underline"
-        >
-          View applicants for this opening →
-        </Link>
+        {!isDm ?
+          <Link
+            href={`/staff/applicants?opening=${encodeURIComponent(decoded)}`}
+            className="text-sm font-medium text-[#0d4f6e] hover:underline"
+          >
+            View applicants for this opening →
+          </Link>
+        : null}
       </div>
     </div>
   );

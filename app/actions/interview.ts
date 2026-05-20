@@ -6,11 +6,36 @@ import {
   createERPNextInterview,
   createERPNextInterviewRound,
   createERPNextInterviewType,
+  rescheduleERPNextInterview,
+  submitERPNextInterview,
   updateERPNextInterview,
 } from "@/lib/erpnext";
+import { normalizeErpTime } from "@/lib/erp-time";
 import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
+import { getSession, isStaffPortalSession } from "@/lib/session";
+import {
+  staffHasHrCapabilities,
+  staffHasRecruiterCapabilities,
+  staffRolesFromSession,
+} from "@/lib/staff-roles";
 import { requireRecruiterInAction, type RecruiterFormState } from "@/app/actions/recruiter";
 import { userFacingError } from "@/lib/user-facing-copy";
+
+const INTERVIEW_INTEGRATION_OPTS = { frappeSessionCookie: null as string | null };
+
+async function requireInterviewWorkflowInAction() {
+  const session = await getSession();
+  if (!session) throw new Error("Sign in required.");
+  if (isStaffPortalSession(session)) {
+    const roles = staffRolesFromSession(session);
+    if (!staffHasRecruiterCapabilities(roles) && !staffHasHrCapabilities(roles)) {
+      throw new Error("You do not have permission to manage interviews.");
+    }
+    return session;
+  }
+  await requireRecruiterInAction();
+  return session;
+}
 
 export type InterviewFormState = RecruiterFormState;
 
@@ -39,16 +64,13 @@ export async function createInterviewForStaff(
       return { error: "Select an interview round or interview type." };
     }
 
-    const fromNorm = fromTime.length === 5 ? `${fromTime}:00` : fromTime;
-    const toNorm = toTime.length === 5 ? `${toTime}:00` : toTime;
-
     const interviewSummary = String(formData.get("interviewSummary") ?? "").trim();
 
     const id = await createERPNextInterview({
       jobApplicantName: applicantName,
       scheduledOn,
-      fromTime: fromNorm,
-      toTime: toNorm,
+      fromTime: normalizeErpTime(fromTime),
+      toTime: normalizeErpTime(toTime),
       interviewRound: interviewRound || undefined,
       interviewType: interviewType || undefined,
       interviewerUsers: [],
@@ -117,12 +139,79 @@ export async function updateInterviewSummaryForStaff(
     if (!docName) return { error: "Missing interview reference." };
 
     const interviewSummary = String(formData.get("interviewSummary") ?? "");
-    await updateERPNextInterview(docName, { interviewSummary });
+    await updateERPNextInterview(docName, { interviewSummary }, INTERVIEW_INTEGRATION_OPTS);
     revalidatePath(`/staff/interviews/${encodeURIComponent(docName)}`);
     revalidatePath("/staff/interviews");
     return { ok: "Interview summary saved." };
   } catch (err) {
     const message = userFacingError(err, "Could not save interview summary.");
+    return { error: message };
+  }
+}
+
+export async function rescheduleInterviewForStaff(
+  _prev: InterviewFormState,
+  formData: FormData,
+): Promise<InterviewFormState> {
+  try {
+    await requireInterviewWorkflowInAction();
+    const docName = String(formData.get("docName") ?? "").trim();
+    if (!docName) return { error: "Missing interview reference." };
+
+    const scheduledOn = String(formData.get("scheduledOn") ?? "").trim();
+    const fromTime = String(formData.get("fromTime") ?? "").trim();
+    const toTime = String(formData.get("toTime") ?? "").trim();
+    if (!scheduledOn || !fromTime || !toTime) {
+      return { error: "Date, start time, and end time are required." };
+    }
+
+    await rescheduleERPNextInterview(
+      docName,
+      {
+        scheduledOn,
+        fromTime: normalizeErpTime(fromTime),
+        toTime: normalizeErpTime(toTime),
+      },
+      INTERVIEW_INTEGRATION_OPTS,
+    );
+    revalidatePath(`/staff/interviews/${encodeURIComponent(docName)}`);
+    revalidatePath("/staff/interviews");
+    return { ok: "Interview rescheduled." };
+  } catch (err) {
+    const message = userFacingError(err, "Could not reschedule interview.");
+    return { error: message };
+  }
+}
+
+export async function submitInterviewForStaff(
+  _prev: InterviewFormState,
+  formData: FormData,
+): Promise<InterviewFormState> {
+  try {
+    await requireInterviewWorkflowInAction();
+    const docName = String(formData.get("docName") ?? "").trim();
+    if (!docName) return { error: "Missing interview reference." };
+
+    const statusRaw = String(formData.get("status") ?? "").trim();
+    if (statusRaw !== "Cleared" && statusRaw !== "Rejected") {
+      return { error: "Select an outcome: Cleared or Rejected." };
+    }
+
+    const interviewSummary = String(formData.get("interviewSummary") ?? "").trim();
+
+    await submitERPNextInterview(
+      docName,
+      {
+        status: statusRaw,
+        interviewSummary: interviewSummary || undefined,
+      },
+      INTERVIEW_INTEGRATION_OPTS,
+    );
+    revalidatePath(`/staff/interviews/${encodeURIComponent(docName)}`);
+    revalidatePath("/staff/interviews");
+    return { ok: `Interview submitted as ${statusRaw}.` };
+  } catch (err) {
+    const message = userFacingError(err, "Could not submit interview.");
     return { error: message };
   }
 }

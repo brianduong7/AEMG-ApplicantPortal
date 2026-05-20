@@ -10,8 +10,13 @@ import {
 } from "@/lib/erpnext";
 import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
 import { parseCompanyId } from "@/lib/companies";
+import { normalizeErpTime } from "@/lib/erp-time";
 import { getSession, isRecruiterPortal, isStaffPortalSession } from "@/lib/session";
-import { staffHasRecruiterCapabilities, staffRolesFromSession } from "@/lib/staff-roles";
+import {
+  staffCanCreateJobRequisitions,
+  staffHasRecruiterCapabilities,
+  staffRolesFromSession,
+} from "@/lib/staff-roles";
 import { userFacingError } from "@/lib/user-facing-copy";
 
 export type RecruiterFormState = { error?: string; ok?: string } | null;
@@ -115,22 +120,46 @@ export async function updateOpeningForRecruiter(
   redirect("/staff/openings");
 }
 
+async function requireDesignationCreateInAction() {
+  const session = await getSession();
+  if (!session) throw new Error("Unauthorized");
+  if (isStaffPortalSession(session)) {
+    const roles = staffRolesFromSession(session);
+    if (
+      !staffHasRecruiterCapabilities(roles) &&
+      !staffCanCreateJobRequisitions(roles)
+    ) {
+      throw new Error("Unauthorized");
+    }
+    return session;
+  }
+  if (!isRecruiterPortal(session)) {
+    throw new Error("Unauthorized");
+  }
+  return session;
+}
+
 export async function createDesignationForRecruiter(
   _prev: RecruiterFormState,
   formData: FormData,
 ): Promise<RecruiterFormState> {
   try {
-    await requireRecruiterInAction();
+    await requireDesignationCreateInAction();
     const designation = String(formData.get("designationTitle") ?? "").trim();
     const description = String(formData.get("designationDescription") ?? "").trim();
     if (!designation) return { error: "Designation title is required." };
 
-    const name = await createERPNextDesignation({
-      designation,
-      description: description || undefined,
-    });
+    /** Master data writes use the integration API user; desk users often lack Designation create. */
+    const name = await createERPNextDesignation(
+      {
+        designation,
+        description: description || undefined,
+      },
+      { frappeSessionCookie: null },
+    );
     revalidatePath("/staff/openings/new");
     revalidatePath("/staff/openings");
+    revalidatePath("/staff/job-requisitions/new");
     return { ok: name };
   } catch (err) {
     const message = userFacingError(err, "Could not create designation.");
@@ -189,14 +218,11 @@ export async function scheduleInterviewForRecruiter(
       };
     }
 
-    const fromNorm = fromTime.length === 5 ? `${fromTime}:00` : fromTime;
-    const toNorm = toTime.length === 5 ? `${toTime}:00` : toTime;
-
     await createERPNextInterview({
       jobApplicantName: applicantName,
       scheduledOn,
-      fromTime: fromNorm,
-      toTime: toNorm,
+      fromTime: normalizeErpTime(fromTime),
+      toTime: normalizeErpTime(toTime),
       interviewRound: interviewRound || undefined,
       interviewType: interviewType || undefined,
       interviewerUsers,

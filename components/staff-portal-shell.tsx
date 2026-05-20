@@ -181,7 +181,10 @@ function SidebarNavLinks({
 }) {
   const dmOnly = isDepartmentManagerOnlyNav(roles);
   const links = NAV_LINKS.filter((item) => staffRolesAllow(roles, item.roles)).filter(
-    (item) => !dmOnly || item.href.includes("/job-requisitions"),
+    (item) =>
+      !dmOnly ||
+      item.href.includes("/job-requisitions") ||
+      item.href.includes("/openings"),
   );
 
   return (

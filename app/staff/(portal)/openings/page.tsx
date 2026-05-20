@@ -45,7 +45,7 @@ export default async function StaffOpeningsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Job openings</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Openings assigned to you as department manager.
+            View openings in your scope and roles linked to your job requisitions (read-only).
           </p>
         </div>
 
@@ -69,7 +69,16 @@ export default async function StaffOpeningsPage() {
                   const title = row.job_title ?? row.designation ?? "Untitled";
                   return (
                     <tr key={id || title} className="hover:bg-slate-50/80">
-                      <td className="px-4 py-3 font-medium text-slate-900">{title}</td>
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {id ?
+                          <Link
+                            href={`/staff/openings/${encodeURIComponent(id)}`}
+                            className="text-[#0d4f6e] hover:underline"
+                          >
+                            {title}
+                          </Link>
+                        : title}
+                      </td>
                       <td className="px-4 py-3 text-slate-700">{row.designation ?? "—"}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800">
@@ -78,7 +87,7 @@ export default async function StaffOpeningsPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {id ?
-                          <OpeningRowActions openingId={id} canEdit={false} />
+                          <OpeningRowActions openingId={id} canEdit={false} viewOnly />
                         : null}
                       </td>
                     </tr>

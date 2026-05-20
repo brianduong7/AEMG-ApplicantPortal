@@ -2,13 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { JobRequisitionApproveButton } from "@/components/job-requisition-approve-button";
+import { JobDescriptionBox } from "@/components/job-description-box";
+import { JobRequisitionReviewActions } from "@/components/job-requisition-review-actions";
 import {
   fetchERPNextJobRequisitionByName,
   hasERPNextConfig,
   JOB_REQUISITION_STATUS_OPEN_APPROVED,
   JOB_REQUISITION_STATUS_PENDING,
+  JOB_REQUISITION_STATUS_REJECTED,
   jobRequisitionUserField,
+  resolveJobRequisitionRequesterIds,
 } from "@/lib/erpnext";
 import { linkedOpeningSummariesForRequisition } from "@/lib/job-requisition-linked-openings";
 import { STAFF_PORTAL_BASE } from "@/lib/staff-portal-base";
@@ -38,6 +41,18 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function formatDetailDate(value: string | undefined): string {
+  const raw = value?.trim();
+  if (!raw) return "—";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default async function StaffJobRequisitionDetailPage({ params }: Props) {
   const { session, roles } = await requireStaffRoles([
     "d_department_manager",
@@ -62,8 +77,12 @@ export default async function StaffJobRequisitionDetailPage({ params }: Props) {
     const requestedBy =
       requisition.requested_by?.trim() ||
       String((requisition as Record<string, unknown>)[jobRequisitionUserField()] ?? "").trim();
-    if (requestedBy && requestedBy.toLowerCase() !== session.email.trim().toLowerCase()) {
-      notFound();
+    if (requestedBy) {
+      const allowed = await resolveJobRequisitionRequesterIds(session.email);
+      const allowedLower = new Set(allowed.map((id) => id.toLowerCase()));
+      if (!allowedLower.has(requestedBy.toLowerCase())) {
+        notFound();
+      }
     }
   }
 
@@ -71,6 +90,8 @@ export default async function StaffJobRequisitionDetailPage({ params }: Props) {
   const status = requisition.status ?? "—";
   const isPending = status === JOB_REQUISITION_STATUS_PENDING;
   const isApproved = status === JOB_REQUISITION_STATUS_OPEN_APPROVED;
+  const isRejected = status === JOB_REQUISITION_STATUS_REJECTED;
+  const descriptionRaw = requisition.description?.trim() || "";
 
   return (
     <div className="flex flex-col gap-8">
@@ -94,7 +115,7 @@ export default async function StaffJobRequisitionDetailPage({ params }: Props) {
         </div>
         {canApprove && isPending ?
           <div className="mt-4">
-            <JobRequisitionApproveButton docName={docName} />
+            <JobRequisitionReviewActions docName={docName} layout="stacked" />
           </div>
         : null}
       </div>
@@ -104,30 +125,32 @@ export default async function StaffJobRequisitionDetailPage({ params }: Props) {
           Requisition details
         </h2>
         <dl className="mt-4 flex flex-col gap-3">
+          <DetailRow label="Requisition ID" value={docName} />
+          <DetailRow label="Status" value={status} />
           <DetailRow label="Designation" value={requisition.designation ?? "—"} />
           <DetailRow label="Department" value={requisition.department ?? "—"} />
+          <DetailRow label="Company" value={requisition.company ?? "—"} />
           <DetailRow label="Positions" value={requisition.no_of_positions ?? "—"} />
-          {!isDmOnly ?
-            <>
-              <DetailRow
-                label="Expected compensation"
-                value={requisition.expected_compensation ?? "—"}
-              />
-              <DetailRow label="Company" value={requisition.company ?? "—"} />
-              <DetailRow label="Posting date" value={requisition.posting_date ?? "—"} />
-              <DetailRow label="Expected by" value={requisition.expected_by ?? "—"} />
-              <DetailRow label="Requested by" value={requisition.requested_by ?? "—"} />
-            </>
-          : null}
+          <DetailRow
+            label="Expected compensation"
+            value={requisition.expected_compensation ?? "—"}
+          />
+          <DetailRow label="Posting date" value={formatDetailDate(requisition.posting_date)} />
+          <DetailRow label="Expected by" value={formatDetailDate(requisition.expected_by)} />
+          <DetailRow label="Requested by" value={requisition.requested_by ?? "—"} />
+          <DetailRow label="Created" value={formatDetailDate(requisition.creation)} />
         </dl>
-        {!isDmOnly && requisition.description?.trim() ?
-          <div className="mt-6 border-t border-slate-100 pt-6">
-            <h3 className="text-sm font-medium text-slate-700">Job description</h3>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
-              {requisition.description}
-            </p>
-          </div>
-        : null}
+      </section>
+
+      <section className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Job description
+        </h2>
+        <div className="mt-4">
+          {descriptionRaw ?
+            <JobDescriptionBox scrollable compact={false} text={descriptionRaw} />
+          : <p className="text-sm text-slate-600">No job description provided.</p>}
+        </div>
       </section>
 
       <section className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
@@ -154,6 +177,8 @@ export default async function StaffJobRequisitionDetailPage({ params }: Props) {
           <p className="mt-4 text-sm text-slate-600">
             {isApproved ?
               "No job opening linked yet."
+            : isRejected ?
+              "This requisition was rejected. No job opening will be created."
             : "An opening can be created after this requisition is approved."}
           </p>
         : <div className="mt-4 overflow-hidden rounded-lg border border-slate-100">
@@ -172,7 +197,16 @@ export default async function StaffJobRequisitionDetailPage({ params }: Props) {
               <tbody className="divide-y divide-slate-100">
                 {linkedOpenings.map((opening) => (
                   <tr key={opening.docName || opening.title}>
-                    <td className="px-4 py-3 font-medium text-slate-900">{opening.title}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900">
+                      {opening.docName ?
+                        <Link
+                          href={`${STAFF_PORTAL_BASE}/openings/${encodeURIComponent(opening.docName)}`}
+                          className="text-[#0d4f6e] hover:underline"
+                        >
+                          {opening.title}
+                        </Link>
+                      : opening.title}
+                    </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800">
                         {opening.status}

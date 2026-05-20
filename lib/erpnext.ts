@@ -1,4 +1,5 @@
 import { erpCompanyNameForPortal, type CompanyId } from "@/lib/companies";
+import { normalizeErpTime } from "@/lib/erp-time";
 import { humanMessageFromFrappeApiError } from "@/lib/frappe-error-message";
 
 type ERPNextJob = {
@@ -190,6 +191,57 @@ export async function fetchERPNextPublishedJobOpenings(): Promise<ERPNextJob[] |
     ["publish", "=", 1],
     ["status", "=", status],
   ];
+
+  const url = new URL(
+    `/api/resource/${encodeURIComponent(config.doctype)}`,
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  url.searchParams.set("fields", JSON.stringify(fields));
+  url.searchParams.set("filters", JSON.stringify(filters));
+  url.searchParams.set("limit_page_length", "100");
+  url.searchParams.set("order_by", "modified desc");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as ERPNextListResponse;
+  return json.data ?? [];
+}
+
+/**
+ * Public careers site: only exclude non-open roles. Does not require `publish` on website.
+ * Optionally filter by ERP `Company` document name (e.g. AIFE).
+ */
+export async function fetchERPNextPublicCareerJobOpenings(options?: {
+  erpCompanyName?: string;
+}): Promise<ERPNextJob[] | null> {
+  const config = getERPConfig();
+  if (!config) return null;
+
+  const fields = [
+    "name",
+    "job_title",
+    "designation",
+    "department",
+    "location",
+    "employment_type",
+    "description",
+    "company",
+    "status",
+    "publish",
+    "creation",
+    "modified",
+  ];
+
+  const status = config.openStatus?.trim() || "Open";
+  const filters: Array<[string, string, string | number]> = [["status", "=", status]];
+  const company = options?.erpCompanyName?.trim();
+  if (company) filters.push(["company", "=", company]);
 
   const url = new URL(
     `/api/resource/${encodeURIComponent(config.doctype)}`,
@@ -805,7 +857,15 @@ export async function fetchERPNextJobOpeningsForDepartmentManager(
   const config = getERPConfig();
   if (!config) return null;
   const field = getDepartmentManagerJobOpeningUserField();
-  const filters: unknown[] = [[field, "=", managerUserId.trim()]];
+  const linkIds = await resolveJobRequisitionRequesterIds(managerUserId);
+  const filters: unknown[] = [];
+  if (linkIds.length > 1) {
+    filters.push([field, "in", linkIds]);
+  } else if (linkIds.length === 1) {
+    filters.push([field, "=", linkIds[0]]);
+  } else {
+    filters.push([field, "=", managerUserId.trim()]);
+  }
 
   const fields = [
     "name",
@@ -844,6 +904,7 @@ export async function fetchERPNextJobOpeningsForDepartmentManager(
 
 export const JOB_REQUISITION_STATUS_PENDING = "Pending";
 export const JOB_REQUISITION_STATUS_OPEN_APPROVED = "Open & Approved";
+export const JOB_REQUISITION_STATUS_REJECTED = "Rejected";
 
 export type ERPNextJobRequisitionRow = {
   name?: string;
@@ -875,6 +936,29 @@ type ERPNextUserRow = {
 };
 
 /** Resolve User document by login id (email) or document name. */
+/** User link values for Job Requisition `requested_by` (email + ERP User name). */
+export async function resolveJobRequisitionRequesterIds(
+  emailOrUserId: string,
+): Promise<string[]> {
+  const trimmed = emailOrUserId.trim();
+  if (!trimmed) return [];
+  const ids = new Set<string>([trimmed]);
+  const user = await fetchERPNextUserRecord(trimmed);
+  if (user?.name?.trim()) ids.add(user.name.trim());
+  if (user?.email?.trim()) ids.add(user.email.trim());
+  return [...ids];
+}
+
+/** Preferred ERP User document name for Link fields; falls back to login email. */
+export async function resolveJobRequisitionRequesterForCreate(
+  emailOrUserId: string,
+): Promise<string> {
+  const trimmed = emailOrUserId.trim();
+  if (!trimmed) return "";
+  const user = await fetchERPNextUserRecord(trimmed);
+  return user?.name?.trim() || trimmed;
+}
+
 export async function fetchERPNextUserRecord(
   userIdOrEmail: string,
 ): Promise<ERPNextUserRow | null> {
@@ -1028,6 +1112,7 @@ export async function fetchERPNextDeskRolesForSession(
 
 export async function fetchERPNextJobRequisitions(options: {
   requestedBy?: string;
+  requestedByIn?: string[];
   status?: string;
   statusIn?: string[];
   limit?: number;
@@ -1037,7 +1122,14 @@ export async function fetchERPNextJobRequisitions(options: {
   const doctype = jobRequisitionDoctype();
   const userField = jobRequisitionUserField();
   const filters: unknown[] = [];
-  if (options.requestedBy?.trim()) {
+  const requesterIds = (options.requestedByIn ?? [])
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (requesterIds.length > 1) {
+    filters.push([userField, "in", requesterIds]);
+  } else if (requesterIds.length === 1) {
+    filters.push([userField, "=", requesterIds[0]]);
+  } else if (options.requestedBy?.trim()) {
     filters.push([userField, "=", options.requestedBy.trim()]);
   }
   if (options.status?.trim()) {
@@ -1077,15 +1169,27 @@ export async function fetchERPNextJobRequisitions(options: {
     cache: "no-store",
   });
   if (!res.ok) return null;
-  const json = (await res.json()) as { data?: ERPNextJobRequisitionRow[] };
-  return json.data ?? [];
+  const json = (await res.json()) as { data?: (ERPNextJobRequisitionRow & Record<string, unknown>)[] };
+  const rows = json.data ?? [];
+  if (userField === "requested_by") return rows;
+  return rows.map((row) => {
+    if (row.requested_by?.trim()) return row;
+    const alt = row[userField];
+    if (alt !== undefined && alt !== null) {
+      return { ...row, requested_by: String(alt) };
+    }
+    return row;
+  });
 }
 
 /** Job requisitions for this manager (default doctype `Job Requisition`, user field `requested_by`). */
 export async function fetchERPNextJobRequisitionsForDepartmentManager(
   managerUserId: string,
 ): Promise<ERPNextJobRequisitionRow[] | null> {
-  return fetchERPNextJobRequisitions({ requestedBy: managerUserId });
+  const ids = await resolveJobRequisitionRequesterIds(managerUserId);
+  return fetchERPNextJobRequisitions({
+    requestedByIn: ids.length > 0 ? ids : [managerUserId],
+  });
 }
 
 export async function createERPNextJobRequisition(input: {
@@ -1521,6 +1625,7 @@ export type ERPNextInterviewRow = {
 /** Single Interview document (detail view). */
 export type ERPNextInterviewDetail = ERPNextInterviewRow & {
   interview_summary?: string;
+  docstatus?: number;
   interview_details?: Array<{
     name?: string;
     interviewer?: string;
@@ -1683,6 +1788,7 @@ function interviewDetailFieldNames(useRoundField: boolean): string[] {
     "to_time",
     "interview_summary",
     "interview_details",
+    "docstatus",
   ];
   return useRoundField ? [...base, "interview_round"] : [...base, "interview_type"];
 }
@@ -2135,8 +2241,8 @@ export async function createERPNextInterview(input: {
     job_applicant: input.jobApplicantName.trim(),
     status: "Pending",
     scheduled_on: input.scheduledOn.trim(),
-    from_time: input.fromTime.trim(),
-    to_time: input.toTime.trim(),
+    from_time: normalizeErpTime(input.fromTime),
+    to_time: normalizeErpTime(input.toTime),
   };
 
   const interviewDetails =
@@ -2184,34 +2290,125 @@ export async function createERPNextInterview(input: {
 
 export async function updateERPNextInterview(
   docName: string,
-  input: { interviewSummary?: string },
+  input: {
+    interviewSummary?: string;
+    status?: "Pending" | "Under Review" | "Cleared" | "Rejected" | "Cancelled";
+  },
+  opts?: { frappeSessionCookie?: string | null },
 ): Promise<void> {
-  const config = getERPConfig();
-  if (!config) throw new Error("Recruitment backend is not configured.");
+  const baseUrl = getERPNextSiteBaseUrl();
+  const trimmed = docName.trim();
+  if (!baseUrl || !trimmed) throw new Error("Missing interview reference.");
 
   const payload: Record<string, unknown> = {};
   if (input.interviewSummary !== undefined) {
     payload.interview_summary = input.interviewSummary.trim();
   }
+  if (input.status) payload.status = input.status;
 
-  const endpoint = new URL(
-    `/api/resource/Interview/${encodeURIComponent(docName.trim())}`,
-    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  if (Object.keys(payload).length === 0) return;
+
+  const url = new URL(
+    `/api/resource/Interview/${encodeURIComponent(trimmed)}`,
+    baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`,
   );
-  const res = await fetch(endpoint.toString(), {
-    method: "PUT",
-    headers: {
-      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(humanMessageFromFrappeApiError(text, res.status));
+
+  let lastError = "Could not update interview.";
+  for (const headers of erpNextAuthHeaderCandidates(opts?.frappeSessionCookie)) {
+    const res = await fetch(url.toString(), {
+      method: "PUT",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...headers,
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+    if (res.ok) return;
+    lastError = humanMessageFromFrappeApiError(await res.text(), res.status);
   }
+  throw new Error(lastError);
+}
+
+async function fetchERPNextInterviewDocForSubmit(
+  docName: string,
+  opts?: { frappeSessionCookie?: string | null },
+): Promise<Record<string, unknown>> {
+  const baseUrl = getERPNextSiteBaseUrl();
+  const trimmed = docName.trim();
+  if (!baseUrl || !trimmed) throw new Error("Missing interview reference.");
+
+  for (const headers of erpNextAuthHeaderCandidates(opts?.frappeSessionCookie)) {
+    const url = new URL(
+      `/api/resource/Interview/${encodeURIComponent(trimmed)}`,
+      baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`,
+    );
+    const res = await fetch(url.toString(), {
+      headers: { Accept: "application/json", ...headers },
+      cache: "no-store",
+    });
+    if (!res.ok) continue;
+    const json = (await res.json()) as { data?: Record<string, unknown> };
+    if (json.data) return json.data;
+  }
+  throw new Error("Interview not found.");
+}
+
+/** Reschedule via HRMS `Interview.reschedule_interview` (expects `HH:mm:ss` times). */
+export async function rescheduleERPNextInterview(
+  docName: string,
+  input: { scheduledOn: string; fromTime: string; toTime: string },
+  opts?: { frappeSessionCookie?: string | null },
+): Promise<void> {
+  const scheduledOn = input.scheduledOn.trim();
+  if (!scheduledOn) throw new Error("Date is required.");
+
+  await callERPNextMethod(
+    "frappe.client.run_doc_method",
+    {
+      dt: "Interview",
+      dn: docName.trim(),
+      method: "reschedule_interview",
+      arg: {
+        scheduled_on: scheduledOn,
+        from_time: normalizeErpTime(input.fromTime),
+        to_time: normalizeErpTime(input.toTime),
+      },
+    },
+    opts,
+  );
+}
+
+/** Submit interview after outcome is Cleared or Rejected (HRMS requirement). */
+export async function submitERPNextInterview(
+  docName: string,
+  input: {
+    status: "Cleared" | "Rejected";
+    interviewSummary?: string;
+  },
+  opts?: { frappeSessionCookie?: string | null },
+): Promise<void> {
+  const current = await fetchERPNextInterviewByName(docName, opts);
+  if (!current?.name) throw new Error("Interview not found.");
+  if (current.docstatus === 1) throw new Error("This interview is already submitted.");
+  if (current.docstatus === 2) throw new Error("This interview was cancelled.");
+
+  await updateERPNextInterview(
+    docName,
+    {
+      status: input.status,
+      interviewSummary: input.interviewSummary,
+    },
+    opts,
+  );
+
+  const doc = await fetchERPNextInterviewDocForSubmit(docName, opts);
+  doc.status = input.status;
+  if (input.interviewSummary !== undefined) {
+    doc.interview_summary = input.interviewSummary.trim();
+  }
+  await callERPNextMethod("frappe.client.submit", { doc }, opts);
 }
 
 export async function createERPNextInterviewRound(input: { roundName: string }): Promise<string> {
@@ -3072,43 +3269,100 @@ export async function fetchERPNextDesignations(opts?: {
   return null;
 }
 
-export async function createERPNextDesignation(input: {
-  designation: string;
-  description?: string;
-}): Promise<string> {
+export async function createERPNextDesignation(
+  input: {
+    designation: string;
+    description?: string;
+  },
+  opts?: { frappeSessionCookie?: string | null },
+): Promise<string> {
   const config = getERPConfig();
-  if (!config) throw new Error("Recruitment backend is not configured.");
+  const baseUrl = getERPNextSiteBaseUrl();
+  const cookie = opts?.frappeSessionCookie?.trim();
+  if (!baseUrl || (!cookie && !config)) {
+    throw new Error("Recruitment backend is not configured.");
+  }
 
   const title = input.designation.trim();
   if (!title) throw new Error("Designation title is required.");
 
-  const payload: Record<string, string> = { designation: title };
-  if (input.description?.trim()) payload.description = input.description.trim();
-
+  const description = input.description?.trim();
   const endpoint = new URL(
     "/api/resource/Designation",
-    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+    baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`,
   );
-  const res = await fetch(endpoint.toString(), {
-    method: "POST",
-    headers: {
-      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(humanMessageFromFrappeApiError(text, res.status));
+
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  if (cookie) {
+    headers.Cookie = cookie;
+  } else if (config) {
+    headers.Authorization = `token ${config.apiKey}:${config.apiSecret}`;
   }
-  const json = (await res.json()) as ERPNextCreateResponse;
-  if (!json.data?.name) throw new Error("Could not create designation.");
-  return json.data.name;
+
+  /** HRMS sites vary: some use `designation`, others only document `name`. */
+  const payloadVariants: Record<string, string>[] = [
+    { designation: title },
+    { name: title },
+  ];
+  let lastError = "Could not create designation. Please check the title and try again.";
+
+  for (let i = 0; i < payloadVariants.length; i++) {
+    const payload = { ...payloadVariants[i] };
+    if (description) payload.description = description;
+    const res = await fetch(endpoint.toString(), {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      lastError = humanMessageFromFrappeApiError(text, res.status);
+      const lower = lastError.toLowerCase();
+      if (i === 0 && lower.includes("designation") && lower.includes("required")) {
+        continue;
+      }
+      throw new Error(lastError);
+    }
+    const json = (await res.json()) as ERPNextCreateResponse;
+    if (!json.data?.name) throw new Error("Could not create designation.");
+    return json.data.name;
+  }
+
+  throw new Error(lastError);
 }
 
 /** Lists Employment Type link targets for job openings. */
+export async function fetchERPNextDepartments(): Promise<{ name: string }[] | null> {
+  const config = getERPConfig();
+  if (!config) return null;
+
+  const url = new URL(
+    "/api/resource/Department",
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  url.searchParams.set("fields", JSON.stringify(["name"]));
+  url.searchParams.set("limit_page_length", "200");
+  url.searchParams.set("order_by", "name asc");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as ERPNextInterviewTypeListResponse;
+  const rows = json.data ?? [];
+  return rows
+    .map((r) => (typeof r.name === "string" ? { name: r.name } : null))
+    .filter((r): r is { name: string } => r !== null);
+}
+
 export async function fetchERPNextEmploymentTypes(): Promise<{ name: string }[] | null> {
   const config = getERPConfig();
   if (!config) return null;

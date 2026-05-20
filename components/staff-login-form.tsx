@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { useActionState } from "react";
 import Link from "next/link";
 import type { AuthFormState } from "@/app/actions/auth";
 import { staffLogin } from "@/app/actions/auth";
-import { COMPANIES, type CompanyId } from "@/lib/companies";
+import { RecruiterBrandLogos } from "@/components/recruiter-brand-logos";
+import type { CompanyId } from "@/lib/companies";
 import { getLoginTheme } from "@/lib/portal-theme";
 
 type Props = {
@@ -17,24 +17,15 @@ type Props = {
 export function StaffLoginForm({ companyId, returnTo, staleSession }: Props) {
   const [state, formAction, pending] = useActionState(staffLogin, null as AuthFormState);
   const t = getLoginTheme(companyId);
-  const meta = COMPANIES[companyId];
-
   return (
     <div className={`${t.outer} min-h-dvh`}>
       <div className={`${t.card} w-full max-w-md`}>
         <div className="mb-6 flex justify-center">
-          <Image
-            src={meta.logoSrc}
-            alt={`${meta.shortLabel} logo`}
-            width={200}
-            height={64}
-            className="h-14 w-auto max-w-[220px] object-contain"
-            priority
-          />
+          <RecruiterBrandLogos layout="auth" aifeOnBrandBackground />
         </div>
         <div className="mb-8 text-center">
           <p className={t.eyebrow}>Staff</p>
-          <h1 className={t.title}>{meta.shortLabel}</h1>
+          <h1 className={t.title}>AIFE &amp; AEMG</h1>
         </div>
         {staleSession ?
           <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">

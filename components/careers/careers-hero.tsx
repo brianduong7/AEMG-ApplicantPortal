@@ -2,6 +2,7 @@ import { CareersNav } from "@/components/careers/careers-nav";
 
 type Props = {
   title: string;
+  jobCode?: string;
   postedAt?: string | null;
   category?: string;
 };
@@ -24,14 +25,14 @@ function IconTag() {
   );
 }
 
-export function CareersHero({ title, postedAt, category = "Recruit" }: Props) {
+export function CareersHero({ title, jobCode, postedAt, category = "Recruit" }: Props) {
   return (
-    <section className="relative isolate min-h-[220px] overflow-hidden bg-slate-900 sm:min-h-[260px]">
+    <section className="relative isolate min-h-[220px] overflow-hidden bg-[#0a1628] sm:min-h-[260px]">
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-40"
+        className="absolute inset-0 bg-cover bg-center opacity-35"
         style={{
           backgroundImage:
-            "linear-gradient(120deg, rgba(15,23,42,0.85), rgba(30,41,59,0.75)), url('https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=1600&q=80')",
+            "linear-gradient(120deg, rgba(10,22,40,0.9), rgba(13,79,110,0.7)), url('https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1600&q=80')",
         }}
         aria-hidden
       />
@@ -52,6 +53,9 @@ export function CareersHero({ title, postedAt, category = "Recruit" }: Props) {
         <h1 className="max-w-4xl text-2xl font-bold leading-tight tracking-tight text-white sm:text-3xl md:text-4xl">
           {title}
         </h1>
+        {jobCode?.trim() ?
+          <p className="mt-2 font-mono text-sm text-slate-300">{jobCode.trim()}</p>
+        : null}
       </div>
     </section>
   );
