@@ -30,8 +30,7 @@ export function RecruiterRegisterForm({ returnTo }: Props) {
           <p className={t.eyebrow}>Recruiter portal</p>
           <h1 className={t.title}>Register — AIFE &amp; AEMG</h1>
           <p className={t.description}>
-            Create an the system System User account for Desk recruiting workflows, then continue to
-            the portal.
+            Create a staff account for recruitment workflows, then continue to the portal.
           </p>
         </div>
         <form action={formAction} className="flex flex-col gap-5">
@@ -93,8 +92,8 @@ export function RecruiterRegisterForm({ returnTo }: Props) {
               className={t.input}
             />
             <p className="text-xs text-slate-500">
-              the system may reject passwords that are too common. Your administrator can assign roles
-              via <code className="rounded bg-slate-100 px-1">ERPNEXT_RECRUITER_REGISTRATION_USER_ROLES</code>.
+              Weak passwords may be rejected. Your administrator assigns recruitment roles after
+              registration.
             </p>
           </div>
           {state?.error ? (

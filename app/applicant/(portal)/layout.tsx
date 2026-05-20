@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { ApplicantPortalShell } from "@/components/applicant-portal-shell";
+import { getApplicantGreetingName } from "@/lib/applicant-display-name";
 import {
   getSession,
   isApplicantPortal,
@@ -22,8 +23,10 @@ export default async function ApplicantPortalLayout({
     redirect("/applicant/login?intent=applicant");
   }
 
+  const displayName = await getApplicantGreetingName(session.email);
+
   return (
-    <ApplicantPortalShell email={session.email} companyId={session.company}>
+    <ApplicantPortalShell companyId={session.company} displayName={displayName}>
       {children}
     </ApplicantPortalShell>
   );

@@ -42,7 +42,7 @@ export default async function ApplicantApplyPage({ params }: Props) {
           </Link>
           <h1 className={`mt-4 ${t.pageTitle}`}>Candidate profile required</h1>
           <p className={`mt-3 ${t.applySectionHint}`}>
-            Your account is signed in, but no Candidate record is linked to your user in ERPNext.
+            Your account is signed in, but no candidate profile is linked to your user yet.
             If you just registered, contact your administrator. You can still review open roles
             below.
           </p>

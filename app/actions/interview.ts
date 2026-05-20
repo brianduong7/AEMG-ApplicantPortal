@@ -10,6 +10,7 @@ import {
 } from "@/lib/erpnext";
 import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
 import { requireRecruiterInAction, type RecruiterFormState } from "@/app/actions/recruiter";
+import { userFacingError } from "@/lib/user-facing-copy";
 
 export type InterviewFormState = RecruiterFormState;
 
@@ -59,7 +60,7 @@ export async function createInterviewForStaff(
     redirect(`/staff/interviews/${encodeURIComponent(id)}`);
   } catch (err) {
     if (err && typeof err === "object" && "digest" in err) throw err;
-    const message = err instanceof Error ? err.message : "Could not create interview.";
+    const message = userFacingError(err, "Could not create interview.");
     return { error: message };
   }
 }
@@ -78,7 +79,7 @@ export async function createInterviewRoundForStaff(
     revalidatePath("/staff/interviews/new");
     return { ok: name };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not create interview round.";
+    const message = userFacingError(err, "Could not create interview round.");
     return { error: message };
   }
 }
@@ -101,7 +102,7 @@ export async function createInterviewTypeForStaff(
     revalidatePath("/staff/interviews/new");
     return { ok: docName };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not create interview type.";
+    const message = userFacingError(err, "Could not create interview type.");
     return { error: message };
   }
 }
@@ -121,7 +122,7 @@ export async function updateInterviewSummaryForStaff(
     revalidatePath("/staff/interviews");
     return { ok: "Interview summary saved." };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not save interview summary.";
+    const message = userFacingError(err, "Could not save interview summary.");
     return { error: message };
   }
 }

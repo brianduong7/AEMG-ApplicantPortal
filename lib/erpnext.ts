@@ -249,7 +249,7 @@ export async function createERPNextJobApplicant(input: {
 }) {
   const config = getERPConfig();
   if (!config) {
-    throw new Error("ERPNext config missing");
+    throw new Error("Recruitment backend is not configured");
   }
 
   const endpoint = new URL(
@@ -289,7 +289,7 @@ export async function createERPNextJobApplicant(input: {
     { ...baseApplicant, [openingKey]: openingId, custom_job_opening_code: openingId },
   ];
 
-  let lastError = "Unknown ERPNext error";
+  let lastError = "Unknown recruitment system error";
   for (const payload of candidates) {
     const res = await fetch(endpoint.toString(), {
       method: "POST",
@@ -300,7 +300,7 @@ export async function createERPNextJobApplicant(input: {
     if (res.ok) {
       const json = (await res.json()) as ERPNextCreateResponse;
       if (json.data?.name) return json.data.name;
-      throw new Error("ERPNext did not return applicant id");
+      throw new Error("The system did not return applicant id");
     }
     const text = await res.text();
     lastError = `(${res.status}) ${text.slice(0, 220)}`;
@@ -314,7 +314,7 @@ export async function uploadResumeForJobApplicant(input: {
 }) {
   const config = getERPConfig();
   if (!config) {
-    throw new Error("ERPNext config missing");
+    throw new Error("Recruitment backend is not configured");
   }
 
   const endpoint = new URL(
@@ -348,7 +348,7 @@ export async function uploadResumeForJobApplicant(input: {
   const json = (await res.json()) as ERPNextUploadResponse;
   const fileUrl = json.message?.file_url ?? "";
   if (!fileUrl) {
-    throw new Error("ERPNext did not return uploaded file URL");
+    throw new Error("The system did not return uploaded file URL");
   }
 
   const updateEndpoint = new URL(
@@ -623,7 +623,7 @@ export async function registerERPNextWebsiteUserAndCandidate(
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const config = getERPConfig();
   if (!config) {
-    return { ok: false, message: "Registration is unavailable (ERPNext is not configured)." };
+    return { ok: false, message: "Registration is unavailable (recruitment services are not configured)." };
   }
 
   const email = input.email.trim().toLowerCase();
@@ -681,8 +681,7 @@ export async function registerERPNextWebsiteUserAndCandidate(
       return {
         ok: false,
         message:
-          "ERPNext could not find a Role name in the request. In Frappe, \"Website User\" is a User Type, not a Role on the Role master. " +
-          "Leave ERPNEXT_REGISTRATION_USER_ROLES unset to omit role rows, or set it to comma-separated Role names from Desk → Role (e.g. Customer).",
+          "Registration could not assign a role to your account. Ask your administrator to review registration role settings.",
       };
     }
     if (userRes.status === 409 || lower.includes("duplicate") || lower.includes("exists")) {
@@ -1103,7 +1102,7 @@ export async function createERPNextJobRequisition(input: {
   namingSeries?: string;
 }): Promise<string> {
   const config = getERPConfig();
-  if (!config) throw new Error("ERPNext config missing");
+  if (!config) throw new Error("Recruitment backend is not configured");
 
   const companyName = erpCompanyNameForPortal(input.company);
   const payload: Record<string, unknown> = {
@@ -1140,7 +1139,7 @@ export async function createERPNextJobRequisition(input: {
     throw new Error(humanMessageFromFrappeApiError(text, res.status));
   }
   const json = (await res.json()) as ERPNextCreateResponse;
-  if (!json.data?.name) throw new Error("ERPNext did not return Job Requisition id");
+  if (!json.data?.name) throw new Error("The system did not return Job Requisition id");
   return json.data.name;
 }
 
@@ -1223,7 +1222,7 @@ export async function updateERPNextJobRequisitionStatus(
 ): Promise<void> {
   const config = getERPConfig();
   const trimmed = docName.trim();
-  if (!config || !trimmed) throw new Error("ERPNext config missing");
+  if (!config || !trimmed) throw new Error("Recruitment backend is not configured");
 
   const doctype = jobRequisitionDoctype();
   const endpoint = new URL(
@@ -1259,7 +1258,7 @@ export async function createERPNextJobOpening(input: {
   jobRequisition?: string;
 }): Promise<string> {
   const config = getERPConfig();
-  if (!config) throw new Error("ERPNext config missing");
+  if (!config) throw new Error("Recruitment backend is not configured");
 
   const companyName = erpCompanyNameForPortal(input.company);
   const payload: Record<string, unknown> = {
@@ -1296,7 +1295,7 @@ export async function createERPNextJobOpening(input: {
     throw new Error(`(${res.status}) ${text.slice(0, 280)}`);
   }
   const json = (await res.json()) as ERPNextCreateResponse;
-  if (!json.data?.name) throw new Error("ERPNext did not return Job Opening id");
+  if (!json.data?.name) throw new Error("The system did not return Job Opening id");
   return json.data.name;
 }
 
@@ -1315,7 +1314,7 @@ export async function updateERPNextJobOpening(
   },
 ): Promise<void> {
   const config = getERPConfig();
-  if (!config) throw new Error("ERPNext config missing");
+  if (!config) throw new Error("Recruitment backend is not configured");
 
   const payload: Record<string, unknown> = {};
   if (input.jobTitle !== undefined) payload.job_title = input.jobTitle.trim();
@@ -1471,6 +1470,38 @@ export async function fetchERPNextJobApplicantByName(
   const withComments = await fetchOne([...coreFields, "comments"]);
   if (withComments) return withComments;
   return fetchOne(coreFields);
+}
+
+export async function updateERPNextJobApplicantStatus(
+  docName: string,
+  status: string,
+): Promise<void> {
+  const config = getERPConfig();
+  const trimmed = docName.trim();
+  const nextStatus = status.trim();
+  if (!config || !trimmed || !nextStatus) {
+    throw new Error("Missing application reference or status.");
+  }
+
+  const url = new URL(
+    `/api/resource/Job Applicant/${encodeURIComponent(trimmed)}`,
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+
+  const res = await fetch(url.toString(), {
+    method: "PUT",
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status: nextStatus }),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(humanMessageFromFrappeApiError(text, res.status));
+  }
 }
 
 export type ERPNextInterviewRow = {
@@ -1980,7 +2011,7 @@ export async function registerERPNextRecruiterDeskUser(
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const config = getERPConfig();
   if (!config) {
-    return { ok: false, message: "Registration is unavailable (ERPNext is not configured)." };
+    return { ok: false, message: "Registration is unavailable (recruitment services are not configured)." };
   }
 
   const email = input.email.trim().toLowerCase();
@@ -2049,7 +2080,7 @@ export async function registerERPNextRecruiterDeskUser(
   }
   const docName = typeof createJson.data?.name === "string" ? createJson.data.name.trim() : email;
   if (!docName) {
-    return { ok: false, message: "ERPNext created the user but did not return a document name." };
+    return { ok: false, message: "The system created the user but did not return a document name." };
   }
 
   const coerced = await coerceRecruiterUserToSystemUser(config, docName, headers);
@@ -2084,7 +2115,7 @@ export async function createERPNextInterview(input: {
   interviewSummary?: string;
 }): Promise<string> {
   const config = getERPConfig();
-  if (!config) throw new Error("ERPNext config missing");
+  if (!config) throw new Error("Recruitment backend is not configured");
 
   const round = input.interviewRound?.trim();
   const interviewType =
@@ -2093,7 +2124,7 @@ export async function createERPNextInterview(input: {
 
   if (!round && !interviewType) {
     throw new Error(
-      "Interview round or interview type is required. Pick a round (v15 HRMS), a type (newer HRMS), or set ERPNEXT_DEFAULT_INTERVIEW_ROUND / ERPNEXT_DEFAULT_INTERVIEW_TYPE.",
+      "Interview round or interview type is required. Pick a round or type, or ask your administrator to configure defaults.",
     );
   }
 
@@ -2147,7 +2178,7 @@ export async function createERPNextInterview(input: {
     throw new Error(humanMessageFromFrappeApiError(text, res.status));
   }
   const json = (await res.json()) as ERPNextCreateResponse;
-  if (!json.data?.name) throw new Error("ERPNext did not return Interview id");
+  if (!json.data?.name) throw new Error("The system did not return Interview id");
   return json.data.name;
 }
 
@@ -2265,7 +2296,7 @@ export async function createERPNextJobOffer(input: {
   saveAsDraft?: boolean;
 }): Promise<string> {
   const config = getERPConfig();
-  if (!config) throw new Error("ERPNext config missing");
+  if (!config) throw new Error("Recruitment backend is not configured");
 
   const companyName = erpCompanyNameForPortal(input.company);
   const payload: Record<string, unknown> = {
@@ -2310,7 +2341,7 @@ export async function createERPNextJobOffer(input: {
     throw new Error(humanMessageFromFrappeApiError(text, res.status));
   }
   const json = (await res.json()) as ERPNextCreateResponse;
-  if (!json.data?.name) throw new Error("ERPNext did not return Job Offer id");
+  if (!json.data?.name) throw new Error("The system did not return Job Offer id");
   return json.data.name;
 }
 
@@ -2722,7 +2753,7 @@ export async function createERPNextCommentForDocument(
   const doctype = referenceDoctype.trim();
   const text = content.trim();
   if (!config || !docName || !doctype || !text) {
-    throw new Error("Missing comment data or ERPNext config.");
+    throw new Error("Missing comment data or recruitment backend is not configured.");
   }
 
   const endpoint = new URL(
@@ -2749,7 +2780,7 @@ export async function createERPNextCommentForDocument(
     throw new Error(humanMessageFromFrappeApiError(raw, res.status));
   }
   const json = (await res.json()) as ERPNextCreateResponse;
-  if (!json.data?.name) throw new Error("ERPNext did not return Comment id");
+  if (!json.data?.name) throw new Error("The system did not return Comment id");
   return json.data.name;
 }
 

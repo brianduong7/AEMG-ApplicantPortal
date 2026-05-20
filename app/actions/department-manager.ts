@@ -8,6 +8,7 @@ import {
 import { loadApplicantForDepartmentManagerPortal } from "@/lib/department-manager-applicants";
 import { getSession, isDepartmentManagerPortal } from "@/lib/session";
 import type { RecruiterFormState } from "@/app/actions/recruiter";
+import { userFacingError } from "@/lib/user-facing-copy";
 
 async function requireDepartmentManagerInAction() {
   const session = await getSession();
@@ -27,7 +28,7 @@ export async function scheduleInterviewForDepartmentManager(
     if (!applicantName) return { error: "Missing applicant." };
 
     if (!hasERPNextConfig()) {
-      return { error: "ERPNext is not configured." };
+      return { error: "Recruitment services are not configured. Contact your administrator." };
     }
 
     const session = await getSession();
@@ -85,9 +86,9 @@ export async function scheduleInterviewForDepartmentManager(
     });
     revalidatePath(`/staff/applicants/${encodeURIComponent(applicantName)}`);
     revalidatePath("/staff/interviews");
-    return { ok: "Interview scheduled in ERPNext." };
+    return { ok: "Interview scheduled successfully." };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not schedule interview.";
+    const message = userFacingError(err, "Could not schedule interview.");
     return { error: message };
   }
 }

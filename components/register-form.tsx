@@ -39,7 +39,7 @@ export function RegisterForm({ companyId, returnTo }: Props) {
           <p className={t.eyebrow}>Applicant portal</p>
           <h1 className={t.title}>Register — {meta.shortLabel}</h1>
           <p className={t.description}>
-            Create a website user and candidate profile in ERPNext, then continue to the portal.
+            Create your account and candidate profile, then continue to the portal.
           </p>
         </div>
         <form action={formAction} className="flex flex-col gap-5">
@@ -102,7 +102,7 @@ export function RegisterForm({ companyId, returnTo }: Props) {
               className={t.input}
             />
             <p className="text-xs text-slate-500">
-              ERPNext may reject passwords that are too common. Choose a stronger passphrase if
+              Weak passwords may be rejected. Choose a stronger passphrase if
               registration fails.
             </p>
           </div>

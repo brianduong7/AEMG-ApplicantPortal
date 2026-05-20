@@ -294,13 +294,13 @@ export default async function StaffApplicantDetailPage({ params }: Props) {
             {interviewLinkMode === "round" && roundsList.length === 0 && !defaultInterviewRound ?
               <p className="mt-4 text-xs text-amber-800">
                 No interview rounds are configured. Ask your administrator to add interview rounds or
-                set <code className="rounded bg-amber-100 px-1">ERPNEXT_DEFAULT_INTERVIEW_ROUND</code>.
+                configure a default round.
               </p>
             : null}
             {interviewLinkMode === "type" && interviewTypes.length === 0 && !defaultInterviewType ?
               <p className="mt-4 text-xs text-amber-800">
-                No interview types are configured. Ask your administrator to add interview types or set{" "}
-                <code className="rounded bg-amber-100 px-1">ERPNEXT_DEFAULT_INTERVIEW_TYPE</code>.
+                No interview types are configured. Ask your administrator to add interview types or
+                configure a default type.
               </p>
             : null}
           </div>

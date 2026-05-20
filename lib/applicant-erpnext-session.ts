@@ -50,7 +50,7 @@ export async function erpnextLoginWithPassword(
   if (!base) {
     return {
       ok: false,
-      message: "Sign-in is unavailable (missing ERPNEXT_BASE_URL).",
+      message: "Sign-in is not configured. Contact your administrator.",
     };
   }
 
@@ -95,7 +95,7 @@ export async function erpnextLoginWithPassword(
       return {
         ok: false,
         message:
-          "Sign-in did not return a session cookie. Check ERPNEXT_BASE_URL and that cookies are not stripped by a proxy.",
+          "Sign-in did not return a session cookie. Contact your administrator if this continues.",
       };
     }
   }

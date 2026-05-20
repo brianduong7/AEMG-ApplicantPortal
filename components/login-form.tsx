@@ -40,7 +40,7 @@ export function LoginForm({ companyId, returnTo }: Props) {
           <p className={t.eyebrow}>Applicant portal</p>
           <h1 className={t.title}>{meta.shortLabel}</h1>
           <p className={t.description}>
-            Sign in with your ERPNext website user to browse open roles and submit applications.
+            Sign in with your account to browse open roles and submit applications.
           </p>
         </div>
         <form action={formAction} className="flex flex-col gap-5">

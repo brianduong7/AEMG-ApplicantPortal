@@ -36,7 +36,7 @@ export default async function RecruiterApplicantsPage({ searchParams }: Props) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Applicants</h1>
         <p className="mt-2 max-w-xl text-sm text-slate-600">
-          Configure ERPNext to list applicants linked to your company&apos;s job openings.
+          Configure the recruitment backend to list applicants linked to your company&apos;s job openings.
         </p>
       </div>
     );

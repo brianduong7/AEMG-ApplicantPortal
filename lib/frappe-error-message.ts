@@ -1,5 +1,7 @@
+import { sanitizeUserFacingMessage } from "@/lib/user-facing-copy";
+
 /**
- * Turns Frappe REST / API JSON error bodies (often HTML inside `exception`) into short plain text.
+ * Turns backend REST / API JSON error bodies (often HTML inside `exception`) into short plain text.
  */
 
 const MAX_LEN = 700;
@@ -87,9 +89,11 @@ function finalizeMessage(
 ): string {
   const plain = stripHtmlToPlainText(candidate);
   if (!plain || looksLikeRawExceptionIdentifier(plain)) {
-    return friendlyMessageForExceptionType(opts?.exceptionType, opts?.httpStatus);
+    return sanitizeUserFacingMessage(
+      friendlyMessageForExceptionType(opts?.exceptionType, opts?.httpStatus),
+    );
   }
-  return plain;
+  return sanitizeUserFacingMessage(plain);
 }
 
 function normalizeFrappeExceptionPrefix(raw: string): string {

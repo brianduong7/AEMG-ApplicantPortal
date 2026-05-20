@@ -6,10 +6,10 @@ import { parseCompanyId } from "@/lib/companies";
 import {
   createERPNextJobOffer,
   fetchERPNextJobOfferByName,
-  sendERPNextJobOfferToCandidate,
   submitERPNextJobOffer,
   updateERPNextJobOffer,
 } from "@/lib/erpnext";
+import { JOB_OFFER_FROM_EMAIL_OPTIONS } from "@/lib/job-offer-email-demo";
 import { parseJobOfferTermsJson } from "@/lib/job-offer-terms";
 import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
 import {
@@ -18,17 +18,11 @@ import {
   staffHasRecruiterCapabilities,
   staffRolesFromSession,
 } from "@/lib/staff-roles";
+import { userFacingError } from "@/lib/user-facing-copy";
 import { getSession } from "@/lib/session";
 
 export type JobOfferHrFormState = { error?: string; ok?: string } | null;
 export type JobOfferCreateFormState = { error?: string; ok?: string } | null;
-
-const JOB_OFFER_STATUSES = new Set([
-  "Awaiting Response",
-  "Accepted",
-  "Rejected",
-  "Cancelled",
-]);
 
 async function requireJobOfferCreatorInAction() {
   const session = await getSession();
@@ -59,8 +53,7 @@ export async function createJobOfferForStaff(
 
     const designation = String(formData.get("designation") ?? "").trim();
     const offerDate = String(formData.get("offerDate") ?? "").trim();
-    const statusRaw = String(formData.get("status") ?? "Awaiting Response").trim();
-    const status = JOB_OFFER_STATUSES.has(statusRaw) ? statusRaw : "Awaiting Response";
+    const status = "Awaiting Response";
     const terms = String(formData.get("terms") ?? "").trim();
     const selectTerms = String(formData.get("selectTerms") ?? "").trim();
     const jobOfferTermTemplate = String(formData.get("jobOfferTermTemplate") ?? "").trim();
@@ -98,7 +91,7 @@ export async function createJobOfferForStaff(
     redirect(`/staff/job-offers/${encodeURIComponent(docName)}`);
   } catch (err) {
     if (err && typeof err === "object" && "digest" in err) throw err;
-    const message = err instanceof Error ? err.message : "Could not create job offer.";
+    const message = userFacingError(err, "Could not create job offer.");
     return { error: message };
   }
 }
@@ -138,12 +131,6 @@ export async function jobOfferHrAction(
       return { ok: "Job offer submitted and approved." };
     }
 
-    if (intent === "send") {
-      await sendERPNextJobOfferToCandidate(docName, opts);
-      revalidateJobOfferPaths(docName);
-      return { ok: "Job offer sent to the candidate by email." };
-    }
-
     const designation = String(formData.get("designation") ?? "").trim();
     const offerDate = String(formData.get("offerDate") ?? "").trim();
     const terms = String(formData.get("terms") ?? "");
@@ -179,7 +166,52 @@ export async function jobOfferHrAction(
     revalidateJobOfferPaths(docName);
     return { ok: "Changes saved." };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not update job offer.";
+    const message = userFacingError(err, "Could not update job offer.");
+    return { error: message };
+  }
+}
+
+const DEMO_FROM_EMAILS = new Set<string>(
+  JOB_OFFER_FROM_EMAIL_OPTIONS.map((o) => o.value),
+);
+
+/** Demo compose flow — does not send real email. */
+export async function sendJobOfferEmailDemo(
+  _prev: JobOfferHrFormState,
+  formData: FormData,
+): Promise<JobOfferHrFormState> {
+  try {
+    await requireHrForJobOfferWorkflowInAction();
+    const docName = String(formData.get("docName") ?? "").trim();
+    if (!docName) return { error: "Missing job offer reference." };
+
+    const opts = JOB_OFFER_INTEGRATION_OPTS;
+    const offer = await fetchERPNextJobOfferByName(docName, opts);
+    if (!offer?.name) return { error: "Job offer not found." };
+    if (offer.docstatus !== 1) {
+      return { error: "Submit and approve the job offer before sending it to the candidate." };
+    }
+
+    const fromEmail = String(formData.get("fromEmail") ?? "").trim();
+    if (!DEMO_FROM_EMAILS.has(fromEmail)) {
+      return { error: "Select a valid sender address." };
+    }
+
+    const toEmail = String(formData.get("toEmail") ?? "").trim();
+    if (!toEmail) return { error: "Recipient email is required." };
+
+    const subject = String(formData.get("subject") ?? "").trim();
+    if (!subject) return { error: "Subject is required." };
+
+    const message = String(formData.get("message") ?? "").trim();
+    if (!message) return { error: "Message is required." };
+
+    revalidateJobOfferPaths(docName);
+    return {
+      ok: `Job offer email queued from ${fromEmail} to ${toEmail} (demo — not delivered).`,
+    };
+  } catch (err) {
+    const message = userFacingError(err, "Could not send job offer email.");
     return { error: message };
   }
 }

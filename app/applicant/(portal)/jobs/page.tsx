@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getPortalTheme } from "@/lib/portal-theme";
+import { ApplicantJobsList } from "@/components/applicant-jobs-list";
 import { getJobsByCompany } from "@/lib/jobs";
+import { getPortalTheme } from "@/lib/portal-theme";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -24,36 +24,7 @@ export default async function ApplicantJobsPage() {
           Choose a position to read the brief and submit your application.
         </p>
       </div>
-      <ul className="flex flex-col gap-4">
-        {jobs.map((job) => (
-          <li key={job.id}>
-            <Link href={`/applicant/jobs/${job.id}/apply`} className={t.jobCard}>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className={t.jobCardTitle}>{job.title}</h2>
-                  <p
-                    className={t.jobCardBody}
-                    style={{
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {job.summary}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-2 text-xs">
-                  <span className={t.jobPillPrimary}>{job.department}</span>
-                  <span className={t.jobPillMuted}>{job.location}</span>
-                  <span className={t.jobPillMuted}>{job.type}</span>
-                </div>
-              </div>
-              <p className={t.jobApplyLink}>Apply →</p>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <ApplicantJobsList jobs={jobs} theme={t} />
     </div>
   );
 }

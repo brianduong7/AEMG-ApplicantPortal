@@ -39,7 +39,7 @@ export function RecruiterLoginForm({ companyId, returnTo }: Props) {
           <p className={t.eyebrow}>Recruiter portal</p>
           <h1 className={t.title}>{meta.shortLabel}</h1>
           <p className={t.description}>
-            Sign in to manage job openings, applicants, and interviews via ERPNext.
+            Sign in to manage job openings, applicants, and interviews.
           </p>
         </div>
         <form action={formAction} className="flex flex-col gap-5">

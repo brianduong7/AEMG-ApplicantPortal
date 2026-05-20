@@ -39,13 +39,6 @@ const selectChevronStyle = {
   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
 } as const;
 
-const STATUS_OPTIONS = [
-  "Awaiting Response",
-  "Accepted",
-  "Rejected",
-  "Cancelled",
-] as const;
-
 export function JobOfferCreateForm({
   mode,
   companyId,
@@ -93,6 +86,7 @@ export function JobOfferCreateForm({
       <input type="hidden" name="applicantDocName" value={selectedApplication?.name ?? ""} />
       <input type="hidden" name="applicantName" value={applicantName} />
       <input type="hidden" name="applicantEmail" value={applicantEmail} />
+      <input type="hidden" name="status" value="Awaiting Response" />
 
       <div className="flex w-full flex-col gap-6">
         <div>
@@ -153,24 +147,6 @@ export function JobOfferCreateForm({
           </>
         : null}
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="offer-status" className={labelClass}>
-            Status
-          </label>
-          <select
-            id="offer-status"
-            name="status"
-            defaultValue="Awaiting Response"
-            className={selectClass}
-            style={selectChevronStyle}
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="offer-date" className={labelClass}>

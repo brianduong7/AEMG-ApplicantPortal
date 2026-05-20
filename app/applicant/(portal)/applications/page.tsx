@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ApplicantApplicationsList } from "@/components/applicant-applications-list";
 import { getApplicantCandidateStrict } from "@/lib/applicant-candidate";
 import { fetchJobApplicantsForCandidate } from "@/lib/applications";
 import { hasERPNextConfig } from "@/lib/erpnext";
@@ -30,40 +31,23 @@ export default async function ApplicantApplicationsPage() {
           My applications
         </h1>
         <p className={t.pageSubtitle}>
-          Job applications you have submitted, linked to your Candidate profile in ERPNext.
+          Job applications you have submitted, linked to your candidate profile.
         </p>
       </div>
 
       <section className={t.applySection}>
         {!erpConfigured ? (
           <p className={t.applySectionHint}>
-            Applications cannot be loaded yet — ERPNext API keys are not configured on this
+            Applications cannot be loaded yet — recruitment services are not configured on this
             server.
           </p>
         ) : !candidate?.name ? (
           <p className={t.applySectionHint}>
             No Candidate profile is linked to your account, so your applications cannot be listed.
-            Complete registration or ask HR to link your user to a Candidate in ERPNext.
+            Complete registration or ask HR to link your account to a candidate profile.
           </p>
-        ) : applications.length === 0 ? (
-          <p className={t.applySectionHint}>No applications yet.</p>
         ) : (
-          <ul className="flex flex-col gap-3">
-            {applications.map((app) => (
-              <li
-                key={app.id}
-                className="rounded-lg border border-slate-200 bg-white p-4"
-              >
-                <p className="font-medium text-slate-900">{app.jobTitle}</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Applied on {app.appliedAt}
-                </p>
-                <p className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
-                  {app.status}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <ApplicantApplicationsList applications={applications} />
         )}
       </section>
 

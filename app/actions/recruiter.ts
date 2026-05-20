@@ -12,6 +12,7 @@ import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
 import { parseCompanyId } from "@/lib/companies";
 import { getSession, isRecruiterPortal, isStaffPortalSession } from "@/lib/session";
 import { staffHasRecruiterCapabilities, staffRolesFromSession } from "@/lib/staff-roles";
+import { userFacingError } from "@/lib/user-facing-copy";
 
 export type RecruiterFormState = { error?: string; ok?: string } | null;
 
@@ -64,7 +65,7 @@ export async function createOpeningForRecruiter(
     });
     revalidatePath("/staff/openings");
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not create opening.";
+    const message = userFacingError(err, "Could not create opening.");
     return { error: message };
   }
   redirect("/staff/openings");
@@ -108,7 +109,7 @@ export async function updateOpeningForRecruiter(
     revalidatePath("/staff/openings");
     revalidatePath(`/staff/openings/${encodeURIComponent(docName)}/edit`);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not update opening.";
+    const message = userFacingError(err, "Could not update opening.");
     return { error: message };
   }
   redirect("/staff/openings");
@@ -132,7 +133,7 @@ export async function createDesignationForRecruiter(
     revalidatePath("/staff/openings");
     return { ok: name };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not create designation.";
+    const message = userFacingError(err, "Could not create designation.");
     return { error: message };
   }
 }
@@ -147,7 +148,7 @@ export async function scheduleInterviewForRecruiter(
     if (!applicantName) return { error: "Missing applicant." };
 
     const visible = await loadApplicantForRecruiterPortal(applicantName);
-    if (!visible) return { error: "Applicant not found in ERPNext." };
+    if (!visible) return { error: "Applicant not found." };
 
     const scheduledOn = String(formData.get("scheduledOn") ?? "").trim();
     const fromTime = String(formData.get("fromTime") ?? "").trim();
@@ -202,9 +203,9 @@ export async function scheduleInterviewForRecruiter(
     });
     revalidatePath(`/staff/applicants/${encodeURIComponent(applicantName)}`);
     revalidatePath("/staff/interviews");
-    return { ok: "Interview scheduled in ERPNext." };
+    return { ok: "Interview scheduled successfully." };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not schedule interview.";
+    const message = userFacingError(err, "Could not schedule interview.");
     return { error: message };
   }
 }

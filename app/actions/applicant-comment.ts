@@ -5,6 +5,7 @@ import { createERPNextCommentForDocument } from "@/lib/erpnext";
 import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
 import { getSession, isStaffPortalSession } from "@/lib/session";
 import { staffRolesFromSession } from "@/lib/staff-roles";
+import { userFacingError } from "@/lib/user-facing-copy";
 
 export type ApplicantCommentFormState = { error?: string; ok?: string } | null;
 
@@ -48,7 +49,7 @@ export async function addJobApplicantComment(
     revalidatePath(`/staff/applicants/${encodeURIComponent(applicant.name)}`);
     return { ok: "Comment added." };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not add comment.";
+    const message = userFacingError(err, "Could not add comment.");
     return { error: message };
   }
 }

@@ -28,7 +28,7 @@ export default async function ApplicantProfilePage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className={t.pageTitle}>My info</h1>
-        <p className={t.pageSubtitle}>Your applicant profile from ERPNext.</p>
+        <p className={t.pageSubtitle}>Your applicant profile.</p>
       </div>
 
       <section className={t.applySection}>
@@ -36,7 +36,7 @@ export default async function ApplicantProfilePage() {
         {!candidate?.name ? (
           <p className={`mt-3 ${t.applySectionHint}`}>
             No Candidate document is linked to your user yet. After registration this should appear
-            automatically; otherwise ask your HR administrator to link your ERPNext user to a
+            automatically; otherwise ask your HR administrator to link your account to a
             Candidate.
           </p>
         ) : (

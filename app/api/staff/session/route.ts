@@ -23,13 +23,13 @@ export async function POST() {
 
   const user = await erpnextGetLoggedUser(frappeCookie);
   if (!user) {
-    return NextResponse.json({ error: "Invalid Frappe session." }, { status: 401 });
+    return NextResponse.json({ error: "Invalid session." }, { status: 401 });
   }
 
   const staffRoles = await resolveStaffErpRolesForUser(user, frappeCookie);
   if (staffRoles.length === 0) {
     return NextResponse.json(
-      { error: "No recruitment roles found for this user in ERPNext." },
+      { error: "No recruitment roles found for this user." },
       { status: 403 },
     );
   }

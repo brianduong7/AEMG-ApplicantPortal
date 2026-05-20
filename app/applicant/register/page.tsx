@@ -5,7 +5,7 @@ import { companyFromSearchParam, parseCompanyId } from "@/lib/companies";
 
 export const metadata: Metadata = {
   title: "Register — Applicant Portal",
-  description: "Create an applicant account linked to ERPNext.",
+  description: "Create an applicant account for the recruitment portal.",
 };
 
 type Props = {

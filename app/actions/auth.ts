@@ -24,6 +24,10 @@ import {
   registerERPNextWebsiteUserAndCandidate,
 } from "@/lib/erpnext";
 import {
+  COPY_SIGN_IN_NOT_CONFIGURED,
+  sanitizeUserFacingMessage,
+} from "@/lib/user-facing-copy";
+import {
   clearDepartmentManagerFrappeSessionCookies,
   setDepartmentManagerFrappeSessionCookies,
 } from "@/lib/department-manager-erpnext-session";
@@ -206,15 +210,12 @@ export async function login(
   }
 
   if (!getERPNextSiteBaseUrl()) {
-    return {
-      error:
-        "Sign-in is not configured (set ERPNEXT_BASE_URL to your Frappe site URL).",
-    };
+    return { error: COPY_SIGN_IN_NOT_CONFIGURED };
   }
 
   const result = await erpnextLoginWithPassword(email, password);
   if (!result.ok) {
-    return { error: result.message };
+    return { error: sanitizeUserFacingMessage(result.message) };
   }
 
   const jar = await cookies();
@@ -265,20 +266,22 @@ export async function registerCandidate(
     linkedin: linkedin || undefined,
   });
   if (!reg.ok) {
-    return { error: reg.message };
+    return { error: sanitizeUserFacingMessage(reg.message) };
   }
 
   if (!getERPNextSiteBaseUrl()) {
     return {
       error:
-        "Account created. Sign in is not configured (ERPNEXT_BASE_URL); please contact support.",
+        "Account created. Sign-in is not configured; please contact support.",
     };
   }
 
   const loginResult = await erpnextLoginWithPassword(email, password);
   if (!loginResult.ok) {
     return {
-      error: `Account created. Automatic sign-in failed: ${loginResult.message}`,
+      error: sanitizeUserFacingMessage(
+        `Account created. Automatic sign-in failed: ${loginResult.message}`,
+      ),
     };
   }
 
@@ -329,20 +332,22 @@ export async function registerRecruiter(
     lastName,
   });
   if (!reg.ok) {
-    return { error: reg.message };
+    return { error: sanitizeUserFacingMessage(reg.message) };
   }
 
   if (!getERPNextSiteBaseUrl()) {
     return {
       error:
-        "Account created. Sign in is not configured (ERPNEXT_BASE_URL); please contact support.",
+        "Account created. Sign-in is not configured; please contact support.",
     };
   }
 
   const loginResult = await erpnextLoginWithPassword(email, password);
   if (!loginResult.ok) {
     return {
-      error: `Account created. Automatic sign-in failed: ${loginResult.message}`,
+      error: sanitizeUserFacingMessage(
+        `Account created. Automatic sign-in failed: ${loginResult.message}`,
+      ),
     };
   }
 
@@ -384,7 +389,7 @@ export async function staffLogin(
   if (erpConfigured) {
     const result = await erpnextLoginWithPassword(email, password);
     if (!result.ok) {
-      return { error: result.message };
+      return { error: sanitizeUserFacingMessage(result.message) };
     }
 
     const deskRoleNames = new Set<string>(
@@ -444,7 +449,7 @@ export async function staffLogin(
 
   return {
     error:
-      "Desk sign-in is not configured (set ERPNEXT_BASE_URL), and this email is not authorized for the HR portal.",
+      "Staff sign-in is not configured, and this email is not authorized for the HR portal.",
   };
 }
 
@@ -463,10 +468,7 @@ export async function recruiterLogin(
   }
 
   if (!getERPNextSiteBaseUrl()) {
-    return {
-      error:
-        "Recruiter sign-in is not configured (set ERPNEXT_BASE_URL to your Frappe site URL).",
-    };
+    return { error: COPY_SIGN_IN_NOT_CONFIGURED };
   }
 
   if (!recruiterEmailIsAllowed(email)) {
@@ -475,7 +477,7 @@ export async function recruiterLogin(
 
   const result = await erpnextLoginWithPassword(email, password);
   if (!result.ok) {
-    return { error: result.message };
+    return { error: sanitizeUserFacingMessage(result.message) };
   }
 
   const jar = await cookies();
@@ -510,10 +512,7 @@ export async function departmentManagerLogin(
   }
 
   if (!getERPNextSiteBaseUrl()) {
-    return {
-      error:
-        "Department manager sign-in is not configured (set ERPNEXT_BASE_URL to your Frappe site URL).",
-    };
+    return { error: COPY_SIGN_IN_NOT_CONFIGURED };
   }
 
   if (!departmentManagerEmailIsAllowed(email)) {
@@ -522,7 +521,7 @@ export async function departmentManagerLogin(
 
   const result = await erpnextLoginWithPassword(email, password);
   if (!result.ok) {
-    return { error: result.message };
+    return { error: sanitizeUserFacingMessage(result.message) };
   }
 
   const jar = await cookies();

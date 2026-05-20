@@ -1,8 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { jobOfferHrAction, type JobOfferHrFormState } from "@/app/actions/job-offer";
+import { JobOfferSendEmailModal } from "@/components/job-offer-send-email-modal";
 import { JobOfferTermsSection } from "@/components/job-offer-terms-section";
+import { IconMail } from "@/components/icons";
 import type { DesignationOption } from "@/lib/designation-options";
 import type { ERPNextJobOfferDetail } from "@/lib/erpnext";
 import type { JobOfferTermLine } from "@/lib/job-offer-terms";
@@ -35,6 +37,8 @@ export function JobOfferHrPanel({
   termsAndConditions,
 }: Props) {
   const [state, formAction, pending] = useActionState(jobOfferHrAction, null as JobOfferHrFormState);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [sendNotice, setSendNotice] = useState<string | null>(null);
 
   const isDraft = offer.docstatus === 0 || offer.docstatus === undefined;
   const isSubmitted = offer.docstatus === 1;
@@ -46,86 +50,90 @@ export function JobOfferHrPanel({
     }))
     .filter((row) => row.offer_term || row.value);
 
+  const feedback = sendNotice ?? state?.ok ?? null;
+  const feedbackError = sendNotice ? null : state?.error;
+
   return (
-    <section className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm sm:p-8">
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-slate-900">HR review</h2>
-        <p className="mt-1 text-sm text-slate-600">
+    <>
+      <section className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm sm:p-8">
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-slate-900">HR review</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            {isDraft ?
+              "Amend the draft, then submit to approve. After submission, send the offer to the candidate."
+            : isSubmitted ?
+              "This offer is submitted. Send it to the candidate when ready."
+            : "This offer is no longer editable."}
+          </p>
+        </div>
+
+        <form action={formAction} className="flex w-full flex-col gap-6">
+          <input type="hidden" name="docName" value={offer.name} />
+
+          <div className="flex flex-col gap-1.5">
+            <span className={labelClass}>Job applicant</span>
+            <p className={readOnlyClass}>{offer.job_applicant ?? "—"}</p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className={labelClass}>Applicant name</span>
+            <p className={readOnlyClass}>{offer.applicant_name ?? "—"}</p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className={labelClass}>Applicant email</span>
+            <p className={readOnlyClass}>{offer.applicant_email ?? "—"}</p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className={labelClass}>Company</span>
+            <p className={readOnlyClass}>{offer.company ?? "—"}</p>
+          </div>
+
           {isDraft ?
-            "Amend the draft, then submit to approve. After submission, send the offer to the candidate."
-          : isSubmitted ?
-            "This offer is submitted. Send it to the candidate when ready."
-          : "This offer is no longer editable."}
-        </p>
-      </div>
-
-      <form action={formAction} className="flex w-full flex-col gap-6">
-        <input type="hidden" name="docName" value={offer.name} />
-
-        <div className="flex flex-col gap-1.5">
-          <span className={labelClass}>Job applicant</span>
-          <p className={readOnlyClass}>{offer.job_applicant ?? "—"}</p>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <span className={labelClass}>Applicant name</span>
-          <p className={readOnlyClass}>{offer.applicant_name ?? "—"}</p>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <span className={labelClass}>Applicant email</span>
-          <p className={readOnlyClass}>{offer.applicant_email ?? "—"}</p>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <span className={labelClass}>Company</span>
-          <p className={readOnlyClass}>{offer.company ?? "—"}</p>
-        </div>
-
-        {isDraft ?
-          <>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="hr-designation" className={labelClass}>
-                Designation <span className="text-red-600">*</span>
-              </label>
-              <select
-                id="hr-designation"
-                name="designation"
-                required
-                defaultValue={defaultDesignation}
-                className={selectClass}
-                style={selectChevronStyle}
-              >
-                <option value="" disabled>
-                  Select designation…
-                </option>
-                {designations.map((d) => (
-                  <option key={d.name} value={d.name}>
-                    {d.label}
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="hr-designation" className={labelClass}>
+                  Designation <span className="text-red-600">*</span>
+                </label>
+                <select
+                  id="hr-designation"
+                  name="designation"
+                  required
+                  defaultValue={defaultDesignation}
+                  className={selectClass}
+                  style={selectChevronStyle}
+                >
+                  <option value="" disabled>
+                    Select designation…
                   </option>
-                ))}
-                {defaultDesignation &&
-                !designations.some((d) => d.name === defaultDesignation) ?
-                  <option value={defaultDesignation}>{defaultDesignation}</option>
-                : null}
-              </select>
-            </div>
+                  {designations.map((d) => (
+                    <option key={d.name} value={d.name}>
+                      {d.label}
+                    </option>
+                  ))}
+                  {defaultDesignation &&
+                  !designations.some((d) => d.name === defaultDesignation) ?
+                    <option value={defaultDesignation}>{defaultDesignation}</option>
+                  : null}
+                </select>
+              </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="hr-offer-date" className={labelClass}>
-                Offer date <span className="text-red-600">*</span>
-              </label>
-              <input
-                id="hr-offer-date"
-                name="offerDate"
-                type="date"
-                required
-                defaultValue={offer.offer_date ?? ""}
-                className={inputClass}
-              />
-            </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="hr-offer-date" className={labelClass}>
+                  Offer date <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="hr-offer-date"
+                  name="offerDate"
+                  type="date"
+                  required
+                  defaultValue={offer.offer_date ?? ""}
+                  className={inputClass}
+                />
+              </div>
 
-            <JobOfferTermsSection
+              <JobOfferTermsSection
                 key={offer.name}
                 offerTermOptions={offerTermOptions}
                 jobOfferTermTemplates={jobOfferTermTemplates}
@@ -136,71 +144,86 @@ export function JobOfferHrPanel({
                 initialRows={initialRows}
                 idPrefix="hr"
               />
-          </>
-        : <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <span className={labelClass}>Designation</span>
-              <p className={readOnlyClass}>{offer.designation ?? "—"}</p>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span className={labelClass}>Offer date</span>
-              <p className={readOnlyClass}>{offer.offer_date ?? "—"}</p>
-            </div>
-          </div>
-        }
-
-        {state?.error ?
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
-            {state.error}
-          </p>
-        : null}
-        {state?.ok ?
-          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">
-            {state.ok}
-          </p>
-        : null}
-
-        <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-2">
-          {isDraft ?
-            <>
-              <button
-                type="submit"
-                name="intent"
-                value="save"
-                disabled={pending}
-                className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-              >
-                {pending ? "Saving…" : "Save changes"}
-              </button>
-              <button
-                type="submit"
-                name="intent"
-                value="submit"
-                disabled={pending}
-                className="rounded-lg bg-[#0a1628] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#152a45] disabled:opacity-60"
-              >
-                {pending ? "Submitting…" : "Submit & approve"}
-              </button>
             </>
+          : <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <span className={labelClass}>Designation</span>
+                <p className={readOnlyClass}>{offer.designation ?? "—"}</p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className={labelClass}>Offer date</span>
+                <p className={readOnlyClass}>{offer.offer_date ?? "—"}</p>
+              </div>
+            </div>
+          }
+
+          {feedbackError ?
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+              {feedbackError}
+            </p>
           : null}
-          {isSubmitted ?
-            <button
-              type="submit"
-              name="intent"
-              value="send"
-              disabled={pending || !offer.applicant_email?.trim()}
-              className="rounded-lg bg-[#0d4f6e] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#0c3d56] disabled:opacity-60"
-              title={
-                !offer.applicant_email?.trim() ?
-                  "Add an applicant email on the job offer first"
-                : undefined
-              }
-            >
-              {pending ? "Sending…" : "Send to candidate"}
-            </button>
+          {feedback ?
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">
+              {feedback}
+            </p>
           : null}
-        </div>
-      </form>
-    </section>
+
+          <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-2">
+            {isDraft ?
+              <>
+                <button
+                  type="submit"
+                  name="intent"
+                  value="save"
+                  disabled={pending}
+                  className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {pending ? "Saving…" : "Save changes"}
+                </button>
+                <button
+                  type="submit"
+                  name="intent"
+                  value="submit"
+                  disabled={pending}
+                  className="rounded-lg bg-[#0a1628] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#152a45] disabled:opacity-60"
+                >
+                  {pending ? "Submitting…" : "Submit & approve"}
+                </button>
+              </>
+            : null}
+            {isSubmitted ?
+              <button
+                type="button"
+                onClick={() => {
+                  setSendNotice(null);
+                  setEmailOpen(true);
+                }}
+                disabled={!offer.applicant_email?.trim()}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#0d4f6e] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#0c3d56] disabled:opacity-60"
+                title={
+                  !offer.applicant_email?.trim() ?
+                    "Add an applicant email on the job offer first"
+                  : undefined
+                }
+              >
+                <IconMail className="h-4 w-4" />
+                Send to candidate
+              </button>
+            : null}
+          </div>
+        </form>
+      </section>
+
+      <JobOfferSendEmailModal
+        open={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        onSent={(message) => setSendNotice(message)}
+        docName={offer.name}
+        applicantName={offer.applicant_name}
+        applicantEmail={offer.applicant_email}
+        designation={offer.designation}
+        company={offer.company}
+      />
+    </>
   );
 }

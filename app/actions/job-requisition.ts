@@ -13,6 +13,7 @@ import {
   staffRolesFromSession,
 } from "@/lib/staff-roles";
 import { STAFF_PORTAL_BASE } from "@/lib/staff-portal-base";
+import { userFacingError } from "@/lib/user-facing-copy";
 
 export type JobRequisitionFormState = { error?: string; ok?: string } | null;
 
@@ -61,7 +62,7 @@ export async function createJobRequisition(
     revalidatePath(`${STAFF_PORTAL_BASE}/job-requisitions`);
     return { ok: `Job requisition ${docName} created.` };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not create job requisition.";
+    const message = userFacingError(err, "Could not create job requisition.");
     return { error: message };
   }
 }
@@ -86,7 +87,7 @@ export async function approveJobRequisition(
     revalidatePath(`${STAFF_PORTAL_BASE}/job-requisitions/${encodeURIComponent(trimmed)}`);
     return { ok: "Requisition approved." };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not approve requisition.";
+    const message = userFacingError(err, "Could not approve requisition.");
     return { error: message };
   }
 }

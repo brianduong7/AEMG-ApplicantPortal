@@ -7,6 +7,7 @@ import {
 } from "@/lib/erpnext";
 import { getApplicantCandidateStrict } from "@/lib/applicant-candidate";
 import { getSession, isApplicantPortal } from "@/lib/session";
+import { userFacingError } from "@/lib/user-facing-copy";
 
 export type ApplicationState = {
   error?: string;
@@ -99,13 +100,16 @@ export async function submitApplication(
       file: resume,
     });
   } catch (err) {
-    console.error("[submitApplication] ERPNext error:", err);
+    console.error("[submitApplication] error:", err);
     if (process.env.NODE_ENV === "development" && err instanceof Error) {
       return {
-        error: `Could not submit to ERPNext: ${err.message}`,
+        error: userFacingError(
+          err,
+          "Could not submit your application right now. Please try again.",
+        ),
       };
     }
-    return { error: "Could not submit to ERPNext right now. Please try again." };
+    return { error: "Could not submit your application right now. Please try again." };
   }
 
   return { success: true, jobTitle: job.title };

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { fetchApplicantApplicationForCandidate } from "@/lib/applications";
+import { getApplicantCandidateStrict } from "@/lib/applicant-candidate";
 import { fetchERPNextSiteFile, hasERPNextConfig } from "@/lib/erpnext";
-import { loadApplicantForDepartmentManagerPortal } from "@/lib/department-manager-applicants";
-import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
-import { getSession, isDepartmentManagerPortal, isRecruiterPortal } from "@/lib/session";
+import { getSession, isApplicantPortal } from "@/lib/session";
 
 function filenameFromAttachment(ref: string): string {
   const path = ref.split("?")[0] ?? ref;
@@ -13,32 +13,39 @@ function filenameFromAttachment(ref: string): string {
 
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ name: string }> },
+  context: { params: Promise<{ id: string }> },
 ) {
   const session = await getSession();
-  const isDm = session && isDepartmentManagerPortal(session) && !isRecruiterPortal(session);
-  const isRec = session && isRecruiterPortal(session);
-  if (!session || (!isDm && !isRec)) {
+  if (!session || !isApplicantPortal(session)) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
   if (!hasERPNextConfig()) {
-    return new NextResponse("Recruitment services are not configured.", { status: 503 });
+    return new NextResponse("Recruitment backend is not configured.", { status: 503 });
   }
 
-  const { name } = await context.params;
-  const decoded = decodeURIComponent(name);
+  const candidate = await getApplicantCandidateStrict();
+  if (!candidate?.name) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
 
-  const applicant = isDm ?
-    await loadApplicantForDepartmentManagerPortal(decoded, session.email)
-  : await loadApplicantForRecruiterPortal(decoded);
-  if (!applicant?.name) {
+  const { id } = await context.params;
+  const applicationId = decodeURIComponent(id).trim();
+  if (!applicationId) {
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const attachment = applicant.resume_attachment?.trim();
+  const application = await fetchApplicantApplicationForCandidate(
+    applicationId,
+    candidate.name,
+  );
+  if (!application) {
+    return new NextResponse("Not found", { status: 404 });
+  }
+
+  const attachment = application.resumeAttachment?.trim();
   if (!attachment) {
-    return new NextResponse("No resume on file for this applicant.", { status: 404 });
+    return new NextResponse("No resume on file for this application.", { status: 404 });
   }
 
   const fetched = await fetchERPNextSiteFile(attachment);
