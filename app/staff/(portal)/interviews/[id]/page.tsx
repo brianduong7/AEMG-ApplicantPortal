@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { InterviewActionsPanel } from "@/components/interview-actions-panel";
 import { InterviewSummaryForm } from "@/components/interview-summary-form";
+import { InterviewTeamsMeetingLink } from "@/components/interview-teams-meeting-link";
+import { getDemoInterviewMeetingUrl } from "@/lib/demo-interview-meeting";
 import {
   fetchERPNextInterviewByName,
   fetchERPNextInterviewRounds,
@@ -70,6 +72,7 @@ export default async function StaffInterviewDetailPage({ params }: Props) {
     [interview.scheduled_on, interview.from_time, interview.to_time].filter(Boolean).join(" · ") ||
     "—";
   const applicantId = interview.job_applicant?.trim();
+  const teamsMeetingUrl = await getDemoInterviewMeetingUrl(interview.name);
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
@@ -83,9 +86,19 @@ export default async function StaffInterviewDetailPage({ params }: Props) {
         </div>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">Interview</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Planning record only — the live interview is held in Microsoft Teams.
+          Share the Teams link below with the candidate. The link is a placeholder until live
+          Microsoft Teams integration is enabled.
         </p>
       </div>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Teams meeting
+        </h2>
+        <div className="mt-4">
+          <InterviewTeamsMeetingLink meetingUrl={teamsMeetingUrl} />
+        </div>
+      </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Details</h2>

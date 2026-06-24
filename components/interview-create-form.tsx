@@ -95,8 +95,8 @@ export function InterviewCreateForm({
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Interview details</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Schedule a placeholder in the system for planning and notes. The actual meeting runs
-              in Microsoft Teams outside this app.
+              Schedule an interview and get a Teams link to share with the candidate. The link is a
+              placeholder until live Microsoft Teams integration is enabled.
             </p>
           </div>
 

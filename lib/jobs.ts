@@ -1,10 +1,5 @@
 import type { CompanyId } from "@/lib/companies";
 import { COMPANY_IDS } from "@/lib/companies";
-import {
-  demoJobOpeningsForCompany,
-  getDemoJobOpeningById,
-  mergeJobsWithDemoOpenings,
-} from "@/lib/demo-job-openings";
 import { fetchERPNextJobOpeningByDocName, fetchERPNextJobs } from "@/lib/erpnext";
 import { prepareJobDescriptionForDisplay } from "@/lib/job-description-html";
 
@@ -97,24 +92,18 @@ function mapERPJobToJob(company: CompanyId, source: {
 export async function getJobsByCompany(company: CompanyId): Promise<Job[]> {
   try {
     const remote = await fetchERPNextJobs(company);
-    if (!remote || remote.length === 0) {
-      return demoJobOpeningsForCompany(company);
-    }
-    const mapped = remote
+    if (!remote?.length) return [];
+    return remote
       .map((job) => mapERPJobToJob(company, job))
       .filter((job): job is Job => job !== null);
-    return mergeJobsWithDemoOpenings(company, mapped);
   } catch {
-    return demoJobOpeningsForCompany(company);
+    return [];
   }
 }
 
 export async function getJobById(id: string): Promise<Job | undefined> {
   const trimmed = id.trim();
   if (!trimmed) return undefined;
-
-  const demo = getDemoJobOpeningById(trimmed);
-  if (demo) return demo;
 
   for (const company of COMPANY_IDS) {
     const list = await getJobsByCompany(company);

@@ -5,6 +5,7 @@ import {
   createERPNextInterview,
   hasERPNextConfig,
 } from "@/lib/erpnext";
+import { saveDemoInterviewMeeting } from "@/lib/demo-interview-meeting";
 import { normalizeErpTime } from "@/lib/erp-time";
 import { loadApplicantForDepartmentManagerPortal } from "@/lib/department-manager-applicants";
 import { getSession, isDepartmentManagerPortal } from "@/lib/session";
@@ -73,7 +74,7 @@ export async function scheduleInterviewForDepartmentManager(
       };
     }
 
-    await createERPNextInterview({
+    const interviewId = await createERPNextInterview({
       jobApplicantName: applicantName,
       scheduledOn,
       fromTime: normalizeErpTime(fromTime),
@@ -82,6 +83,7 @@ export async function scheduleInterviewForDepartmentManager(
       interviewType: interviewType || undefined,
       interviewerUsers,
     });
+    await saveDemoInterviewMeeting(interviewId);
     revalidatePath(`/staff/applicants/${encodeURIComponent(applicantName)}`);
     revalidatePath("/staff/interviews");
     return { ok: "Interview scheduled successfully." };

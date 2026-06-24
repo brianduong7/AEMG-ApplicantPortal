@@ -14,6 +14,7 @@ import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
 import { parseAdditionalQuestionIdsFromFormData } from "@/lib/job-opening-questions-demo";
 import { saveOpeningQuestionConfig } from "@/lib/job-opening-questions-store";
 import { parseCompanyId } from "@/lib/companies";
+import { saveDemoInterviewMeeting } from "@/lib/demo-interview-meeting";
 import { normalizeErpTime } from "@/lib/erp-time";
 import { getSession, isRecruiterPortal, isStaffPortalSession } from "@/lib/session";
 import {
@@ -236,7 +237,7 @@ export async function scheduleInterviewForRecruiter(
       };
     }
 
-    await createERPNextInterview({
+    const interviewId = await createERPNextInterview({
       jobApplicantName: applicantName,
       scheduledOn,
       fromTime: normalizeErpTime(fromTime),
@@ -245,6 +246,7 @@ export async function scheduleInterviewForRecruiter(
       interviewType: interviewType || undefined,
       interviewerUsers,
     });
+    await saveDemoInterviewMeeting(interviewId);
     revalidatePath(`/staff/applicants/${encodeURIComponent(applicantName)}`);
     revalidatePath("/staff/interviews");
     return { ok: "Interview scheduled successfully." };

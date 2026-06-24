@@ -5,6 +5,7 @@ import { ApplicantCommentForm } from "@/components/applicant-comment-form";
 import { ApplicantRecruitmentAnswersPanel } from "@/components/applicant-recruitment-answers-panel";
 import { ApplicantDetailSection } from "@/components/applicant-detail-section";
 import { InterviewScheduleForm } from "@/components/interview-schedule-form";
+import { InterviewTeamsMeetingLink } from "@/components/interview-teams-meeting-link";
 import {
   fetchERPNextCommentsForDocument,
   fetchERPNextInterviewRounds,
@@ -17,6 +18,7 @@ import {
   type ERPNextCommentRow,
 } from "@/lib/erpnext";
 import { getDemoApplicantRecruitmentAnswers } from "@/lib/applicant-answers-demo";
+import { getDemoInterviewMeetingUrls } from "@/lib/demo-interview-meeting";
 import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
 import { readStaffFrappeCookieHeader } from "@/lib/staff-erpnext-session";
 import { staffHasRecruiterCapabilities, staffRolesFromSession } from "@/lib/staff-roles";
@@ -120,6 +122,9 @@ export default async function StaffApplicantDetailPage({ params }: Props) {
   ]);
 
   const interviews = applicantInterviews ?? [];
+  const interviewMeetingUrls = await getDemoInterviewMeetingUrls(
+    interviews.map((row) => row.name).filter((n): n is string => Boolean(n?.trim())),
+  );
   const deskComments = (timelineComments ?? []).filter(
     (row) => (row.comment_type?.trim() || "Comment") === "Comment",
   );
@@ -239,12 +244,13 @@ export default async function StaffApplicantDetailPage({ params }: Props) {
         {interviews.length === 0 ?
           <p className="text-sm text-slate-600">No interviews scheduled yet.</p>
         : <div className="overflow-x-auto rounded-lg border border-slate-100">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-slate-100 bg-slate-50/90 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-3 py-2.5">When</th>
                   <th className="px-3 py-2.5">Round / type</th>
                   <th className="px-3 py-2.5">Status</th>
+                  <th className="px-3 py-2.5 text-right">Teams</th>
                   <th className="px-3 py-2.5 text-right"> </th>
                 </tr>
               </thead>
@@ -262,6 +268,14 @@ export default async function StaffApplicantDetailPage({ params }: Props) {
                       <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
                         {row.status ?? "—"}
                       </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      {row.name && interviewMeetingUrls[row.name] ?
+                        <InterviewTeamsMeetingLink
+                          meetingUrl={interviewMeetingUrls[row.name]}
+                          variant="compact"
+                        />
+                      : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       {row.name ?

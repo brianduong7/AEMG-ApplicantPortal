@@ -19,6 +19,7 @@ import {
   staffRolesFromSession,
 } from "@/lib/staff-roles";
 import { requireRecruiterInAction, type RecruiterFormState } from "@/app/actions/recruiter";
+import { saveDemoInterviewMeeting } from "@/lib/demo-interview-meeting";
 import { userFacingError } from "@/lib/user-facing-copy";
 
 const INTERVIEW_INTEGRATION_OPTS = { frappeSessionCookie: null as string | null };
@@ -76,6 +77,8 @@ export async function createInterviewForStaff(
       interviewerUsers: [],
       interviewSummary: interviewSummary || undefined,
     });
+
+    await saveDemoInterviewMeeting(id);
 
     revalidatePath("/staff/interviews");
     revalidatePath(`/staff/interviews/${encodeURIComponent(id)}`);

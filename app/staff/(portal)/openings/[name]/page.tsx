@@ -7,10 +7,6 @@ import { IconPencil } from "@/components/icons";
 import { careerJobPath } from "@/lib/careers";
 import { getPublicCareerJobByDocId } from "@/lib/careers-site";
 import { getRecruitmentQuestionsForOpening } from "@/lib/job-opening-questions-store";
-import {
-  demoJobOpeningAsErpRow,
-  getDemoJobOpeningById,
-} from "@/lib/demo-job-openings";
 import { loadJobOpeningForDepartmentManagerView } from "@/lib/department-manager-openings";
 import { staffUseDepartmentManagerDataPlane } from "@/lib/staff-data-plane";
 import {
@@ -47,14 +43,10 @@ export default async function StaffOpeningViewPage({ params }: Props) {
 
   if (!hasERPNextConfig()) notFound();
 
-  const row =
+  const displayRow =
     isDm ?
       await loadJobOpeningForDepartmentManagerView(session.email, decoded)
     : await fetchERPNextJobOpeningByDocName(decoded);
-  const demoJob = !row ? getDemoJobOpeningById(decoded) : undefined;
-  const displayRow =
-    row ??
-    (demoJob ? demoJobOpeningAsErpRow(demoJob) : null);
   if (!displayRow) notFound();
 
   const careerPreview = await getPublicCareerJobByDocId(decoded);
@@ -90,7 +82,7 @@ export default async function StaffOpeningViewPage({ params }: Props) {
               View on careers website
             </Link>
           : null}
-          {canEdit && !demoJob ?
+          {canEdit ?
             <Link
               href={`/staff/openings/${encodeURIComponent(decoded)}/edit`}
               className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
