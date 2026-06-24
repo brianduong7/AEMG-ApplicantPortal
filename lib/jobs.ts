@@ -1,5 +1,10 @@
 import type { CompanyId } from "@/lib/companies";
 import { COMPANY_IDS } from "@/lib/companies";
+import {
+  demoJobOpeningsForCompany,
+  getDemoJobOpeningById,
+  mergeJobsWithDemoOpenings,
+} from "@/lib/demo-job-openings";
 import { fetchERPNextJobOpeningByDocName, fetchERPNextJobs } from "@/lib/erpnext";
 import { prepareJobDescriptionForDisplay } from "@/lib/job-description-html";
 
@@ -14,49 +19,6 @@ export type Job = {
   /** Rich HTML from ERPNext (Quill), normalized for in-app preview. */
   summaryHtml?: string | null;
 };
-
-const FALLBACK_JOBS: Job[] = [
-  {
-    id: "aemg-senior-software-engineer",
-    company: "aemg",
-    title: "Senior Software Engineer (AEMG)",
-    department: "Technology",
-    location: "Hybrid — Melbourne",
-    type: "Full-time",
-    summary:
-      "Build and scale internal digital systems for student onboarding and operations.",
-  },
-  {
-    id: "aemg-campus-admissions-officer",
-    company: "aemg",
-    title: "Campus Admissions Officer (AEMG)",
-    department: "Admissions",
-    location: "On-site — Melbourne",
-    type: "Full-time",
-    summary:
-      "Guide prospective students through admission, documentation, and enrollment steps.",
-  },
-  {
-    id: "aife-student-support-coordinator",
-    company: "aife",
-    title: "Student Support Coordinator (AIFE)",
-    department: "Student Services",
-    location: "On-site — Phnom Penh",
-    type: "Full-time",
-    summary:
-      "Support student wellbeing and academic progress across partner programs.",
-  },
-  {
-    id: "aife-marketing-executive",
-    company: "aife",
-    title: "Marketing Executive (AIFE)",
-    department: "Marketing",
-    location: "Hybrid — Sydney",
-    type: "Contract",
-    summary:
-      "Plan and execute digital campaigns for education products and international outreach.",
-  },
-];
 
 function normalizeType(value?: string): Job["type"] {
   if (value === "Part-time") return "Part-time";
@@ -135,18 +97,24 @@ function mapERPJobToJob(company: CompanyId, source: {
 export async function getJobsByCompany(company: CompanyId): Promise<Job[]> {
   try {
     const remote = await fetchERPNextJobs(company);
-    if (!remote) return FALLBACK_JOBS.filter((j) => j.company === company);
-    return remote
+    if (!remote || remote.length === 0) {
+      return demoJobOpeningsForCompany(company);
+    }
+    const mapped = remote
       .map((job) => mapERPJobToJob(company, job))
       .filter((job): job is Job => job !== null);
+    return mergeJobsWithDemoOpenings(company, mapped);
   } catch {
-    return FALLBACK_JOBS.filter((j) => j.company === company);
+    return demoJobOpeningsForCompany(company);
   }
 }
 
 export async function getJobById(id: string): Promise<Job | undefined> {
   const trimmed = id.trim();
   if (!trimmed) return undefined;
+
+  const demo = getDemoJobOpeningById(trimmed);
+  if (demo) return demo;
 
   for (const company of COMPANY_IDS) {
     const list = await getJobsByCompany(company);

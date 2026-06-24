@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { JobOfferCommentsSection } from "@/components/job-offer-comments-section";
 import { JobOfferHrPanel } from "@/components/job-offer-hr-panel";
 import { toDesignationOptions } from "@/lib/designation-options";
 import {
+  fetchERPNextCommentsForDocument,
   fetchERPNextDesignations,
   fetchERPNextHrTermsAndConditions,
   fetchERPNextJobOfferByName,
@@ -61,12 +63,14 @@ export default async function StaffJobOfferDetailPage({ params }: Props) {
   if (!hasERPNextConfig() || !docName.trim()) notFound();
 
   const frappeCookie = await readStaffFrappeCookieHeader();
-  const [offer, designations, termsRows, templateRows, offerTermRows] = await Promise.all([
+  const [offer, designations, termsRows, templateRows, offerTermRows, offerComments] =
+    await Promise.all([
     fetchERPNextJobOfferByName(docName, { frappeSessionCookie: frappeCookie }),
     fetchERPNextDesignations({ frappeSessionCookie: frappeCookie }),
     fetchERPNextHrTermsAndConditions(),
     fetchERPNextJobOfferTermTemplates(),
     fetchERPNextOfferTerms(),
+    fetchERPNextCommentsForDocument("Job Offer", docName),
   ]);
 
   if (!offer?.name) notFound();
@@ -189,6 +193,11 @@ export default async function StaffJobOfferDetailPage({ params }: Props) {
           : null}
         </section>
       }
+
+      <JobOfferCommentsSection
+        offerDocName={offer.name}
+        comments={offerComments ?? []}
+      />
     </div>
   );
 }

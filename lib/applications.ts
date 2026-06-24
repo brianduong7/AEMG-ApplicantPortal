@@ -27,7 +27,7 @@ export type ApplicantApplication = {
 /** Portal pipeline labels shown to applicants. */
 export const APPLICANT_PIPELINE_APPLIED = "Applied";
 export const APPLICANT_PIPELINE_INTERVIEWING = "Interviewing";
-export const APPLICANT_PIPELINE_OFFER_SENT = "Offer Sent";
+export const APPLICANT_PIPELINE_OFFER_SENT = "Offer Created";
 export const APPLICANT_PIPELINE_OFFER_ACCEPTED = "Offer Accepted";
 export const APPLICANT_PIPELINE_OFFER_DECLINED = "Offer Declined";
 export const APPLICANT_PIPELINE_REJECTED = "Rejected";
@@ -515,7 +515,10 @@ function pipelineIndexForDisplayStatus(status: string): number {
   if (n === APPLICANT_PIPELINE_OFFER_ACCEPTED.toLowerCase() || /offer accepted|accepted offer/i.test(n)) {
     return APPLICANT_STATUS_PIPELINE.indexOf(APPLICANT_PIPELINE_OFFER_ACCEPTED);
   }
-  if (n === APPLICANT_PIPELINE_OFFER_SENT.toLowerCase() || /offer sent|awaiting response/i.test(n)) {
+  if (
+    n === APPLICANT_PIPELINE_OFFER_SENT.toLowerCase() ||
+    /offer (?:sent|created)|awaiting response/i.test(n)
+  ) {
     return APPLICANT_STATUS_PIPELINE.indexOf(APPLICANT_PIPELINE_OFFER_SENT);
   }
   if (n === APPLICANT_PIPELINE_INTERVIEWING.toLowerCase() || /interview/i.test(n)) {

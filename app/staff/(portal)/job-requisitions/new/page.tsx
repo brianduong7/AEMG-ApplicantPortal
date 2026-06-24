@@ -4,6 +4,11 @@ import { redirect } from "next/navigation";
 import { JobRequisitionCreateForm } from "@/components/job-requisition-create-form";
 import { toDesignationOptions } from "@/lib/designation-options";
 import {
+  defaultErpCompanyNameForPortal,
+  toCompanyFormOptions,
+} from "@/lib/companies";
+import {
+  fetchERPNextCompanies,
   fetchERPNextDepartments,
   fetchERPNextDesignations,
   hasERPNextConfig,
@@ -48,10 +53,14 @@ export default async function NewJobRequisitionPage() {
   }
 
   const frappeCookie = await readStaffFrappeCookieHeader();
-  const [designations, departments] = await Promise.all([
+  const [designations, departments, companyRows] = await Promise.all([
     fetchERPNextDesignations({ frappeSessionCookie: frappeCookie }),
     fetchERPNextDepartments(),
+    fetchERPNextCompanies(),
   ]);
+
+  const companies = toCompanyFormOptions(companyRows ?? []);
+  const defaultCompanyName = defaultErpCompanyNameForPortal(companies, session.company);
 
   const departmentOptions = (departments ?? [])
     .map((d) => ({ name: d.name, label: d.name }))
@@ -76,7 +85,8 @@ export default async function NewJobRequisitionPage() {
       </div>
       <JobRequisitionCreateForm
         defaultPostingDate={today}
-        defaultCompanyId={session.company}
+        defaultCompanyName={defaultCompanyName}
+        companies={companies}
         designations={toDesignationOptions(designations)}
         departments={departmentOptions}
       />

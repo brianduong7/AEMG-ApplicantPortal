@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import {
+  isDemoJobOpeningId,
+  mergeErpRowsWithDemoOpenings,
+} from "@/lib/demo-job-openings";
 import { OpeningRowActions } from "@/components/opening-row-actions";
 import {
   fetchERPNextJobOpeningsForDepartmentManager,
@@ -101,7 +105,7 @@ export default async function StaffOpeningsPage() {
     );
   }
 
-  const rows = await fetchERPNextJobOpeningsForHr();
+  const rows = mergeErpRowsWithDemoOpenings((await fetchERPNextJobOpeningsForHr()) ?? []);
 
   return (
     <div className="flex flex-col gap-6">
@@ -122,7 +126,7 @@ export default async function StaffOpeningsPage() {
         : null}
       </div>
 
-      {!rows || rows.length === 0 ?
+      {!rows.length ?
         <p className="rounded-xl border border-slate-200/80 bg-white p-6 text-sm text-slate-600 shadow-sm">
           No job openings yet.{" "}
           {canEdit ?
@@ -170,7 +174,10 @@ export default async function StaffOpeningsPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       {id ?
-                        <OpeningRowActions openingId={id} canEdit={canEdit} />
+                        <OpeningRowActions
+                          openingId={id}
+                          canEdit={canEdit && !isDemoJobOpeningId(id)}
+                        />
                       : null}
                     </td>
                   </tr>

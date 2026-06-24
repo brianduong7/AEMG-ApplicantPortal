@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApplicantCommentForm } from "@/components/applicant-comment-form";
+import { ApplicantRecruitmentAnswersPanel } from "@/components/applicant-recruitment-answers-panel";
 import { ApplicantDetailSection } from "@/components/applicant-detail-section";
 import { InterviewScheduleForm } from "@/components/interview-schedule-form";
 import {
@@ -15,6 +16,7 @@ import {
   hasERPNextConfig,
   type ERPNextCommentRow,
 } from "@/lib/erpnext";
+import { getDemoApplicantRecruitmentAnswers } from "@/lib/applicant-answers-demo";
 import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
 import { readStaffFrappeCookieHeader } from "@/lib/staff-erpnext-session";
 import { staffHasRecruiterCapabilities, staffRolesFromSession } from "@/lib/staff-roles";
@@ -107,12 +109,14 @@ export default async function StaffApplicantDetailPage({ params }: Props) {
   const defaultInterviewType = process.env.ERPNEXT_DEFAULT_INTERVIEW_TYPE?.trim();
 
   const frappeCookie = await readStaffFrappeCookieHeader();
-  const [applicantInterviews, timelineComments, jobOffers] = await Promise.all([
+  const [applicantInterviews, timelineComments, jobOffers, demoRecruitmentAnswers] =
+    await Promise.all([
     fetchERPNextInterviewsForJobApplicant(applicant.name, {
       frappeSessionCookie: frappeCookie,
     }),
     fetchERPNextCommentsForDocument("Job Applicant", applicant.name),
     fetchERPNextJobOffersForJobApplicants([applicant.name]),
+    getDemoApplicantRecruitmentAnswers(applicant.name),
   ]);
 
   const interviews = applicantInterviews ?? [];
@@ -176,6 +180,8 @@ export default async function StaffApplicantDetailPage({ params }: Props) {
           : null}
         </dl>
       </ApplicantDetailSection>
+
+      <ApplicantRecruitmentAnswersPanel record={demoRecruitmentAnswers} />
 
       <ApplicantDetailSection
         title="Comments"

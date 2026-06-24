@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { parseCompanyId } from "@/lib/companies";
 import {
   createERPNextJobRequisition,
   JOB_REQUISITION_STATUS_OPEN_APPROVED,
@@ -32,8 +31,7 @@ export async function createJobRequisition(
     return { error: "You do not have permission to create job requisitions." };
   }
 
-  const companyRaw = String(formData.get("company") ?? "").trim();
-  const company = parseCompanyId(companyRaw);
+  const erpCompanyName = String(formData.get("company") ?? "").trim();
   const designation = String(formData.get("designation") ?? "").trim();
   const noOfPositionsRaw = String(formData.get("noOfPositions") ?? "").trim();
   const expectedCompensation = String(formData.get("expectedCompensation") ?? "").trim();
@@ -44,7 +42,7 @@ export async function createJobRequisition(
 
   const noOfPositions = Number(noOfPositionsRaw);
   if (
-    !company ||
+    !erpCompanyName ||
     !designation ||
     !expectedCompensation ||
     !postingDate ||
@@ -60,7 +58,7 @@ export async function createJobRequisition(
   try {
     const requestedBy = await resolveJobRequisitionRequesterForCreate(session.email);
     const docName = await createERPNextJobRequisition({
-      company,
+      erpCompanyName,
       designation,
       noOfPositions,
       expectedCompensation,

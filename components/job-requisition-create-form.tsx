@@ -8,7 +8,7 @@ import {
 import { DesignationCreateDialog } from "@/components/designation-create-dialog";
 import { IconPlus } from "@/components/icons";
 import type { OpeningFormOption } from "@/components/opening-form";
-import { COMPANY_IDS, COMPANIES, type CompanyId } from "@/lib/companies";
+import type { ErpCompanyOption } from "@/lib/companies";
 
 const initial: JobRequisitionFormState = null;
 
@@ -22,14 +22,16 @@ const labelClass = "text-sm font-medium text-slate-700";
 
 type Props = {
   defaultPostingDate: string;
-  defaultCompanyId: CompanyId;
+  defaultCompanyName: string;
+  companies: ErpCompanyOption[];
   designations: OpeningFormOption[];
   departments: OpeningFormOption[];
 };
 
 export function JobRequisitionCreateForm({
   defaultPostingDate,
-  defaultCompanyId,
+  defaultCompanyName,
+  companies,
   designations,
   departments,
 }: Props) {
@@ -65,16 +67,24 @@ export function JobRequisitionCreateForm({
               id="company"
               name="company"
               required
-              defaultValue={defaultCompanyId}
+              defaultValue={defaultCompanyName}
               className={selectClass}
               style={selectChevronStyle}
             >
-              {COMPANY_IDS.map((id) => (
-                <option key={id} value={id}>
-                  {COMPANIES[id].label}
+              <option value="" disabled>
+                Select company…
+              </option>
+              {companies.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.label}
                 </option>
               ))}
             </select>
+            {companies.length === 0 ?
+              <p className="text-xs text-amber-700">
+                No companies found in the recruitment system. Contact your administrator.
+              </p>
+            : null}
           </div>
 
           <div className="flex flex-col gap-1.5">

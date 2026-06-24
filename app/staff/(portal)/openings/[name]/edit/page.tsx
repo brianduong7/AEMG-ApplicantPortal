@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OpeningForm } from "@/components/opening-form";
+import {
+  getDefaultPoolQuestions,
+  getOptionalPoolQuestions,
+} from "@/lib/job-opening-questions-demo";
+import { getAdditionalQuestionIdsForOpening } from "@/lib/job-opening-questions-store";
 import { toDesignationOptions } from "@/lib/designation-options";
 import {
   fetchERPNextDesignations,
@@ -73,6 +78,10 @@ export default async function StaffEditOpeningPage({ params }: Props) {
     jobRequisition: linkedRequisition,
   };
 
+  const initialAdditionalQuestionIds = await getAdditionalQuestionIdsForOpening(decoded);
+  const defaultQuestions = getDefaultPoolQuestions();
+  const optionalQuestions = getOptionalPoolQuestions();
+
   const requisitionOptions = (approvedRequisitions ?? [])
     .filter((r) => r.name?.trim())
     .map((r) => ({
@@ -102,6 +111,9 @@ export default async function StaffEditOpeningPage({ params }: Props) {
         designations={designationOptions}
         employmentTypes={(employmentTypes ?? []).map((t) => t.name)}
         jobRequisitionOptions={requisitionOptions}
+        defaultQuestions={defaultQuestions}
+        optionalQuestions={optionalQuestions}
+        initialAdditionalQuestionIds={initialAdditionalQuestionIds}
       />
 
       <section className="max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">

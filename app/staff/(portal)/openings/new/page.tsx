@@ -11,6 +11,10 @@ import {
   JOB_REQUISITION_STATUS_OPEN_APPROVED,
 } from "@/lib/erpnext";
 import { readStaffFrappeCookieHeader } from "@/lib/staff-erpnext-session";
+import {
+  getDefaultPoolQuestions,
+  getOptionalPoolQuestions,
+} from "@/lib/job-opening-questions-demo";
 import { requireStaffRoles } from "@/lib/staff-session";
 
 export const metadata: Metadata = {
@@ -76,6 +80,9 @@ export default async function StaffNewOpeningPage({ searchParams }: Props) {
       }
     : undefined;
 
+  const defaultQuestions = getDefaultPoolQuestions();
+  const optionalQuestions = getOptionalPoolQuestions();
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -97,6 +104,8 @@ export default async function StaffNewOpeningPage({ searchParams }: Props) {
         jobRequisitionOptions={requisitionOptions}
         lockedJobRequisition={lockedRequisition}
         initial={initial}
+        defaultQuestions={defaultQuestions}
+        optionalQuestions={optionalQuestions}
       />
     </div>
   );

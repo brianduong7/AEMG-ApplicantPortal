@@ -1,6 +1,10 @@
 import type { CompanyId } from "@/lib/companies";
 import { assignUniqueCareerSlugs, slugifyJobTitle } from "@/lib/careers-slug";
 import {
+  demoJobOpeningAsErpRow,
+  demoJobOpeningsForCompany,
+} from "@/lib/demo-job-openings";
+import {
   fetchERPNextPublicCareerJobOpenings,
   fetchERPNextPublishedJobOpenings,
 } from "@/lib/erpnext";
@@ -82,11 +86,31 @@ export async function getPublishedCareerJobs(): Promise<CareerJob[]> {
 /** Public careers pages: open status only (no publish-on-website gate). */
 export async function getPublicCareerJobsForCompany(company: CompanyId): Promise<CareerJob[]> {
   const rows = await fetchERPNextPublicCareerJobOpenings();
-  if (!rows?.length) return [];
-  const mapped = rows
-    .map(mapRow)
-    .filter((j): j is CareerJob => j !== null && j.company === company);
-  return assignUniqueCareerSlugs(mapped);
+  const erpMapped =
+    rows?.length ?
+      rows
+        .map(mapRow)
+        .filter((j): j is CareerJob => j !== null && j.company === company)
+    : [];
+  const erpIds = new Set(erpMapped.map((j) => j.id));
+  const demoMapped = demoJobOpeningsForCompany(company)
+    .filter((j) => !erpIds.has(j.id))
+    .map((job) => {
+      const erp = demoJobOpeningAsErpRow(job);
+      return mapRow({
+        name: erp.name,
+        job_title: erp.job_title,
+        designation: erp.designation,
+        department: erp.department,
+        location: erp.location,
+        employment_type: erp.employment_type,
+        description: erp.description,
+        company: erp.company,
+        modified: new Date().toISOString(),
+      });
+    })
+    .filter((j): j is CareerJob => j !== null);
+  return assignUniqueCareerSlugs([...erpMapped, ...demoMapped]);
 }
 
 export async function getCareerJobByDocId(docId: string): Promise<CareerJob | undefined> {

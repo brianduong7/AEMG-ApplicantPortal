@@ -2,13 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { companyIdFromErpCompanyField } from "@/lib/companies";
 import {
   createERPNextDesignation,
   createERPNextInterview,
   createERPNextJobOpening,
+  fetchERPNextJobRequisitionByName,
   updateERPNextJobOpening,
 } from "@/lib/erpnext";
 import { loadApplicantForRecruiterPortal } from "@/lib/recruiter-applicants";
+import { parseAdditionalQuestionIdsFromFormData } from "@/lib/job-opening-questions-demo";
+import { saveOpeningQuestionConfig } from "@/lib/job-opening-questions-store";
 import { parseCompanyId } from "@/lib/companies";
 import { normalizeErpTime } from "@/lib/erp-time";
 import { getSession, isRecruiterPortal, isStaffPortalSession } from "@/lib/session";
@@ -56,8 +60,16 @@ export async function createOpeningForRecruiter(
       return { error: "Job title and designation are required." };
     }
 
-    await createERPNextJobOpening({
-      company: session.company,
+    let company = session.company;
+    if (jobRequisition) {
+      const req = await fetchERPNextJobRequisitionByName(jobRequisition);
+      if (req?.company?.trim()) {
+        company = companyIdFromErpCompanyField(req.company);
+      }
+    }
+
+    const docName = await createERPNextJobOpening({
+      company,
       jobTitle,
       designation,
       department: department || undefined,
@@ -67,6 +79,9 @@ export async function createOpeningForRecruiter(
       status,
       publish,
       jobRequisition: jobRequisition || undefined,
+    });
+    await saveOpeningQuestionConfig(docName, {
+      additionalQuestionIds: parseAdditionalQuestionIdsFromFormData(formData),
     });
     revalidatePath("/staff/openings");
   } catch (err) {
@@ -110,6 +125,9 @@ export async function updateOpeningForRecruiter(
       status,
       publish,
       jobRequisition: jobRequisition || null,
+    });
+    await saveOpeningQuestionConfig(docName, {
+      additionalQuestionIds: parseAdditionalQuestionIdsFromFormData(formData),
     });
     revalidatePath("/staff/openings");
     revalidatePath(`/staff/openings/${encodeURIComponent(docName)}/edit`);

@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { OpeningRecruitmentQuestionsPanel } from "@/components/opening-recruitment-questions-panel";
 import { JobDescriptionBox } from "@/components/job-description-box";
 import { IconPencil } from "@/components/icons";
 import { careerJobPath } from "@/lib/careers";
 import { getPublicCareerJobByDocId } from "@/lib/careers-site";
+import { getRecruitmentQuestionsForOpening } from "@/lib/job-opening-questions-store";
+import {
+  demoJobOpeningAsErpRow,
+  getDemoJobOpeningById,
+} from "@/lib/demo-job-openings";
 import { loadJobOpeningForDepartmentManagerView } from "@/lib/department-manager-openings";
 import { staffUseDepartmentManagerDataPlane } from "@/lib/staff-data-plane";
 import {
@@ -45,12 +51,17 @@ export default async function StaffOpeningViewPage({ params }: Props) {
     isDm ?
       await loadJobOpeningForDepartmentManagerView(session.email, decoded)
     : await fetchERPNextJobOpeningByDocName(decoded);
-  if (!row) notFound();
+  const demoJob = !row ? getDemoJobOpeningById(decoded) : undefined;
+  const displayRow =
+    row ??
+    (demoJob ? demoJobOpeningAsErpRow(demoJob) : null);
+  if (!displayRow) notFound();
 
   const careerPreview = await getPublicCareerJobByDocId(decoded);
+  const recruitmentQuestions = await getRecruitmentQuestionsForOpening(decoded);
 
-  const title = row.job_title ?? row.designation ?? "Job opening";
-  const descriptionRaw = row.description?.trim() ?? "";
+  const title = displayRow.job_title ?? displayRow.designation ?? "Job opening";
+  const descriptionRaw = displayRow.description?.trim() ?? "";
 
   return (
     <div className="flex flex-col gap-6">
@@ -79,7 +90,7 @@ export default async function StaffOpeningViewPage({ params }: Props) {
               View on careers website
             </Link>
           : null}
-          {canEdit ?
+          {canEdit && !demoJob ?
             <Link
               href={`/staff/openings/${encodeURIComponent(decoded)}/edit`}
               className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
@@ -91,41 +102,41 @@ export default async function StaffOpeningViewPage({ params }: Props) {
         </div>
       </div>
 
-      <div className="grid max-w-3xl gap-6">
+      <div className="flex w-full flex-col gap-6">
         <section className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Details</h2>
           <dl className="mt-4 grid gap-4 sm:grid-cols-2 text-sm">
             <div>
               <dt className="text-slate-500">Designation</dt>
-              <dd className="mt-0.5 font-medium text-slate-900">{row.designation ?? "—"}</dd>
+              <dd className="mt-0.5 font-medium text-slate-900">{displayRow.designation ?? "—"}</dd>
             </div>
             <div>
               <dt className="text-slate-500">Status</dt>
               <dd className="mt-0.5">
                 <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800">
-                  {row.status ?? "—"}
+                  {displayRow.status ?? "—"}
                 </span>
               </dd>
             </div>
             <div>
               <dt className="text-slate-500">Department</dt>
-              <dd className="mt-0.5 text-slate-800">{row.department ?? "—"}</dd>
+              <dd className="mt-0.5 text-slate-800">{displayRow.department ?? "—"}</dd>
             </div>
             <div>
               <dt className="text-slate-500">Employment type</dt>
-              <dd className="mt-0.5 text-slate-800">{row.employment_type ?? "—"}</dd>
+              <dd className="mt-0.5 text-slate-800">{displayRow.employment_type ?? "—"}</dd>
             </div>
             <div>
               <dt className="text-slate-500">Location</dt>
-              <dd className="mt-0.5 text-slate-800">{row.location ?? "—"}</dd>
+              <dd className="mt-0.5 text-slate-800">{displayRow.location ?? "—"}</dd>
             </div>
             <div>
               <dt className="text-slate-500">Company</dt>
-              <dd className="mt-0.5 text-slate-800">{row.company ?? "—"}</dd>
+              <dd className="mt-0.5 text-slate-800">{displayRow.company ?? "—"}</dd>
             </div>
             <div>
               <dt className="text-slate-500">Published</dt>
-              <dd className="mt-0.5 text-slate-800">{row.publish === 1 ? "Yes" : "No"}</dd>
+              <dd className="mt-0.5 text-slate-800">{displayRow.publish === 1 ? "Yes" : "No"}</dd>
             </div>
           </dl>
         </section>
@@ -140,6 +151,11 @@ export default async function StaffOpeningViewPage({ params }: Props) {
             : <p className="text-sm text-slate-600">No description provided.</p>}
           </div>
         </section>
+
+        <OpeningRecruitmentQuestionsPanel
+          jobOpeningId={decoded}
+          questions={recruitmentQuestions}
+        />
 
         {!isDm ?
           <Link

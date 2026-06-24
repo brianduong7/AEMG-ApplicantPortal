@@ -8,11 +8,13 @@ import {
 } from "@/app/actions/recruiter";
 import { DesignationCreateDialog } from "@/components/designation-create-dialog";
 import { IconPlus } from "@/components/icons";
+import { OpeningQuestionPicker } from "@/components/opening-question-picker";
 import {
   normalizeJobDescriptionForEditor,
   prepareJobDescriptionForDisplay,
 } from "@/lib/job-description-html";
 import { JOB_DESCRIPTION_PREVIEW_HTML_CLASS } from "@/lib/job-description-preview-classes";
+import type { RecruitmentQuestion } from "@/lib/recruitment-questions-demo";
 
 type Initial = {
   jobTitle: string;
@@ -34,6 +36,9 @@ export type OpeningFormOption = {
 type SharedProps = {
   designations: OpeningFormOption[];
   employmentTypes: string[];
+  defaultQuestions: RecruitmentQuestion[];
+  optionalQuestions: RecruitmentQuestion[];
+  initialAdditionalQuestionIds?: string[];
 };
 
 type Props =
@@ -307,21 +312,23 @@ export function OpeningForm(props: Props) {
             }
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="status" className={labelClass}>
-              Status
-            </label>
-            <select
-              id="status"
-              name="status"
-              defaultValue={init.status}
-              className={selectClass}
-              style={selectChevronStyle}
-            >
-              <option value="Open">Open</option>
-              <option value="Closed">Closed</option>
-            </select>
-          </div>
+          {props.mode === "edit" ?
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="status" className={labelClass}>
+                Status
+              </label>
+              <select
+                id="status"
+                name="status"
+                defaultValue={init.status}
+                className={selectClass}
+                style={selectChevronStyle}
+              >
+                <option value="Open">Open</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </div>
+          : <input type="hidden" name="status" value="Open" />}
 
           <div className="flex flex-col gap-1.5">
             <span className={labelClass}>Visibility</span>
@@ -335,6 +342,12 @@ export function OpeningForm(props: Props) {
               Publish on website
             </label>
           </div>
+
+          <OpeningQuestionPicker
+            defaultQuestions={props.defaultQuestions}
+            optionalQuestions={props.optionalQuestions}
+            initialAdditionalQuestionIds={props.initialAdditionalQuestionIds}
+          />
 
           {state?.error ?
             <p

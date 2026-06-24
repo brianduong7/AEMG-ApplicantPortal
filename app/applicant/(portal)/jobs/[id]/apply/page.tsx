@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getApplicantCandidateStrict } from "@/lib/applicant-candidate";
 import { ApplyForm } from "@/components/apply-form";
 import { JobDescriptionBox } from "@/components/job-description-box";
+import { getRecruitmentQuestionsByJobIds } from "@/lib/job-opening-questions-store";
 import { getJobById, getJobsByCompany } from "@/lib/jobs";
 import { getPortalTheme } from "@/lib/portal-theme";
 import { getSession } from "@/lib/session";
@@ -62,6 +63,8 @@ export default async function ApplicantApplyPage({ params }: Props) {
     email: (candidate.email ?? session.email).trim(),
   };
 
+  const questionsByJobId = await getRecruitmentQuestionsByJobIds(jobsForForm.map((j) => j.id));
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -89,6 +92,7 @@ export default async function ApplicantApplyPage({ params }: Props) {
             initialJobId={job.id}
             company={session.company}
             applicantIdentity={applicantIdentity}
+            questionsByJobId={questionsByJobId}
           />
         </div>
       </section>

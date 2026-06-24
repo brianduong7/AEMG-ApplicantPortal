@@ -1,11 +1,18 @@
 "use server";
 
-import { getJobById } from "@/lib/jobs";
+import { saveDemoApplicantRecruitmentAnswers } from "@/lib/applicant-answers-demo";
+import { getApplicantCandidateStrict } from "@/lib/applicant-candidate";
 import {
   createERPNextJobApplicant,
   uploadResumeForJobApplicant,
 } from "@/lib/erpnext";
-import { getApplicantCandidateStrict } from "@/lib/applicant-candidate";
+import { getRecruitmentQuestionsForOpening } from "@/lib/job-opening-questions-store";
+import { getJobById } from "@/lib/jobs";
+import {
+  formatRecruitmentAnswersForCoverLetter,
+  parseRecruitmentAnswersFromFormData,
+  validateRecruitmentAnswers,
+} from "@/lib/recruitment-questions-demo";
 import { getSession, isApplicantPortal } from "@/lib/session";
 import { userFacingError } from "@/lib/user-facing-copy";
 
@@ -86,6 +93,15 @@ export async function submitApplication(
     };
   }
 
+  const openingQuestions = await getRecruitmentQuestionsForOpening(job.id);
+  const parsedAnswers = parseRecruitmentAnswersFromFormData(formData, openingQuestions);
+  const questionError = validateRecruitmentAnswers(parsedAnswers, openingQuestions);
+  if (questionError) {
+    return { error: questionError };
+  }
+
+  const coverLetterAppendix = formatRecruitmentAnswersForCoverLetter(parsedAnswers);
+
   try {
     const applicantId = await createERPNextJobApplicant({
       applicantName,
@@ -94,11 +110,20 @@ export async function submitApplication(
       country,
       jobCode: job.id,
       candidateDocName: candidate.name,
+      coverLetter: coverLetterAppendix || undefined,
     });
     await uploadResumeForJobApplicant({
       applicantId,
       file: resume,
     });
+    if (parsedAnswers.length > 0) {
+      await saveDemoApplicantRecruitmentAnswers({
+        jobOpeningId: job.id,
+        jobApplicantId: applicantId,
+        submittedAt: new Date().toISOString(),
+        answers: parsedAnswers,
+      });
+    }
   } catch (err) {
     console.error("[submitApplication] error:", err);
     if (process.env.NODE_ENV === "development" && err instanceof Error) {

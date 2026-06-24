@@ -1192,8 +1192,50 @@ export async function fetchERPNextJobRequisitionsForDepartmentManager(
   });
 }
 
+export type ERPNextCompanyRow = {
+  name: string;
+  company_name?: string;
+};
+
+export async function fetchERPNextCompanies(): Promise<ERPNextCompanyRow[] | null> {
+  const config = getERPConfig();
+  if (!config) return null;
+
+  const url = new URL(
+    "/api/resource/Company",
+    config.baseUrl.endsWith("/") ? config.baseUrl : `${config.baseUrl}/`,
+  );
+  url.searchParams.set("fields", JSON.stringify(["name", "company_name"]));
+  url.searchParams.set("limit_page_length", "200");
+  url.searchParams.set("order_by", "company_name asc");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `token ${config.apiKey}:${config.apiSecret}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as { data?: ERPNextCompanyRow[] };
+  const rows = json.data ?? [];
+  const out: ERPNextCompanyRow[] = [];
+  for (const r of rows) {
+    const name = typeof r.name === "string" ? r.name.trim() : "";
+    if (!name) continue;
+    out.push({
+      name,
+      company_name:
+        typeof r.company_name === "string" ? r.company_name.trim() : undefined,
+    });
+  }
+  return out;
+}
+
 export async function createERPNextJobRequisition(input: {
-  company: CompanyId;
+  company?: CompanyId;
+  /** ERPNext Company document name (preferred when chosen from desk list). */
+  erpCompanyName?: string;
   designation: string;
   noOfPositions: number;
   expectedCompensation: string;
@@ -1208,7 +1250,11 @@ export async function createERPNextJobRequisition(input: {
   const config = getERPConfig();
   if (!config) throw new Error("Recruitment backend is not configured");
 
-  const companyName = erpCompanyNameForPortal(input.company);
+  const companyName =
+    input.erpCompanyName?.trim() ||
+    (input.company ? erpCompanyNameForPortal(input.company) : "");
+  if (!companyName) throw new Error("Company is required.");
+
   const payload: Record<string, unknown> = {
     company: companyName,
     designation: input.designation.trim(),
@@ -1396,7 +1442,7 @@ export async function createERPNextJobOpening(input: {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`(${res.status}) ${text.slice(0, 280)}`);
+    throw new Error(humanMessageFromFrappeApiError(text, res.status));
   }
   const json = (await res.json()) as ERPNextCreateResponse;
   if (!json.data?.name) throw new Error("The system did not return Job Opening id");

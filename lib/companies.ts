@@ -26,6 +26,49 @@ export function erpCompanyNameForPortal(company: CompanyId): string {
   return (process.env.ERPNEXT_AEMG_COMPANY ?? "AEMG").trim() || "AEMG";
 }
 
+/** Map ERPNext `Company` link value from a document to portal company id. */
+export function companyIdFromErpCompanyField(erpCompany?: string): CompanyId {
+  const raw = erpCompany?.trim();
+  if (!raw) return RECRUITER_PORTAL_DEFAULT_COMPANY;
+  const lower = raw.toLowerCase();
+  const aifeName = (process.env.ERPNEXT_AIFE_COMPANY ?? "AIFE").trim().toLowerCase();
+  const aemgName = (process.env.ERPNEXT_AEMG_COMPANY ?? "AEMG").trim().toLowerCase();
+  if (lower === aifeName || lower.includes("aife") || lower.includes("future education")) {
+    return "aife";
+  }
+  if (lower === aemgName || lower.includes("aemg")) return "aemg";
+  return RECRUITER_PORTAL_DEFAULT_COMPANY;
+}
+
+export type ErpCompanyOption = { name: string; label: string };
+
+export function toCompanyFormOptions(
+  rows: Array<{ name: string; company_name?: string }>,
+): ErpCompanyOption[] {
+  return rows
+    .map((r) => {
+      const name = r.name?.trim() ?? "";
+      if (!name) return null;
+      return { name, label: r.company_name?.trim() || name };
+    })
+    .filter((r): r is ErpCompanyOption => r !== null)
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** Pick default ERP Company doc name for a portal company (login cookie / session). */
+export function defaultErpCompanyNameForPortal(
+  companies: ErpCompanyOption[],
+  preferred: CompanyId,
+): string {
+  if (!companies.length) return "";
+  const target = erpCompanyNameForPortal(preferred).toLowerCase();
+  const exact = companies.find((c) => c.name.toLowerCase() === target);
+  if (exact) return exact.name;
+  const mapped = companies.find((c) => companyIdFromErpCompanyField(c.name) === preferred);
+  if (mapped) return mapped.name;
+  return companies[0].name;
+}
+
 export const COMPANIES: Record<
   CompanyId,
   { id: CompanyId; label: string; shortLabel: string; logoSrc: string }

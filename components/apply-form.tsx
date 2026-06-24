@@ -6,8 +6,10 @@ import type { Job } from "@/lib/jobs";
 import type { CompanyId } from "@/lib/companies";
 import type { ApplicationState } from "@/app/actions/application";
 import { submitApplication } from "@/app/actions/application";
+import { RecruitmentQuestionsFields } from "@/components/recruitment-questions-fields";
 import { COUNTRIES } from "@/lib/countries";
 import { getApplyFormTheme } from "@/lib/portal-theme";
+import type { ResolvedOpeningQuestion } from "@/lib/recruitment-questions-demo";
 
 type Props = {
   jobs: Job[];
@@ -15,9 +17,17 @@ type Props = {
   company: CompanyId;
   /** When set, name/email come from ERPNext Candidate (not editable). */
   applicantIdentity?: { fullName: string; email: string };
+  /** Demo recruitment questions keyed by job opening document id. */
+  questionsByJobId: Record<string, ResolvedOpeningQuestion[]>;
 };
 
-export function ApplyForm({ jobs, initialJobId, company, applicantIdentity }: Props) {
+export function ApplyForm({
+  jobs,
+  initialJobId,
+  company,
+  applicantIdentity,
+  questionsByJobId,
+}: Props) {
   const [state, formAction, pending] = useActionState(
     submitApplication,
     null as ApplicationState,
@@ -28,6 +38,10 @@ export function ApplyForm({ jobs, initialJobId, company, applicantIdentity }: Pr
   const selectedJob = useMemo(
     () => jobs.find((j) => j.id === selectedJobId),
     [jobs, selectedJobId],
+  );
+  const recruitmentQuestions = useMemo(
+    () => questionsByJobId[selectedJobId] ?? [],
+    [questionsByJobId, selectedJobId],
   );
 
   if (state?.success && state.jobTitle) {
@@ -167,6 +181,29 @@ export function ApplyForm({ jobs, initialJobId, company, applicantIdentity }: Pr
           <p className={th.fileHint}>PDF or Word, up to 5 MB.</p>
         </div>
       </div>
+
+      {recruitmentQuestions.length > 0 ?
+        <section
+          className="rounded-xl border border-violet-200/80 bg-violet-50/30 p-5 shadow-sm sm:p-6"
+          aria-labelledby="recruitment-questions-heading"
+        >
+          <div className={th.sectionBorder}>
+            <h3 id="recruitment-questions-heading" className={th.sectionTitle}>
+              Application questions
+            </h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Answer the questions selected for{" "}
+              <span className="font-medium text-slate-800">
+                {selectedJob?.title ?? "this role"}
+              </span>
+              . Fields marked with <span className="text-red-600">*</span> are required.
+            </p>
+          </div>
+          <div className="mt-6">
+            <RecruitmentQuestionsFields questions={recruitmentQuestions} theme={th} />
+          </div>
+        </section>
+      : null}
 
       {state?.error ? (
         <p className={th.errorBox} role="alert">
